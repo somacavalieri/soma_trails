@@ -51,6 +51,7 @@ class _MapScreenState extends State<MapScreen> {
 
   Position? _position;
   bool _follow = false;
+  double _zoom = 13;
 
   static const _serraDoCipo = LatLng(-19.3690, -43.5896);
 
@@ -141,9 +142,34 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _onMapEvent(MapEvent event) {
-    if (_follow && event.source == MapEventSource.onDrag) {
-      setState(() => _follow = false);
+    final z = event.camera.zoom;
+    final unfollow = _follow && event.source == MapEventSource.onDrag;
+    // Rebuild só quando o zoom exibido muda (ou ao sair do modo seguir).
+    if (unfollow || z.round() != _zoom.round()) {
+      setState(() {
+        if (unfollow) _follow = false;
+        _zoom = z;
+      });
+    } else {
+      _zoom = z;
     }
+  }
+
+  /// Maior zoom baixado que cobre o centro atual (para avisar de overzoom).
+  int? _downloadedMaxZoomAtCenter() {
+    LatLng center;
+    try {
+      center = _mapController.camera.center;
+    } catch (_) {
+      return null;
+    }
+    int? maxZoom;
+    for (final r in _download.regions) {
+      if (r.sourceId == _sources.active.id && r.contains(center)) {
+        if (maxZoom == null || r.maxZoom > maxZoom) maxZoom = r.maxZoom;
+      }
+    }
+    return maxZoom;
   }
 
   void _showLocationProblem(LocationReadyResult result) {
@@ -533,13 +559,22 @@ class _MapScreenState extends State<MapScreen> {
             child: _MapIconButton(icon: Icons.layers, onTap: _openSources),
           ),
 
-          // Zoom +/-
+          // Zoom +/- com indicador do nível atual
           Positioned(
             right: 12,
             top: topInset + (_recorder.isActive ? 96 : 24),
-            child: _ZoomControls(
-              onZoomIn: () => _zoomBy(1),
-              onZoomOut: () => _zoomBy(-1),
+            child: Column(
+              children: [
+                _ZoomControls(
+                  onZoomIn: () => _zoomBy(1),
+                  onZoomOut: () => _zoomBy(-1),
+                ),
+                const SizedBox(height: 6),
+                _ZoomBadge(
+                  zoom: _zoom.round(),
+                  downloadedMax: _downloadedMaxZoomAtCenter(),
+                ),
+              ],
             ),
           ),
 
@@ -624,6 +659,43 @@ class _OfflineReadyChip extends StatelessWidget {
                   color: AppColors.ok,
                   fontSize: 13,
                   fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Selinho com o nível de zoom atual. Fica âmbar quando o zoom passou do
+/// máximo baixado no centro (aí a imagem é escalada/borrada, não crua).
+class _ZoomBadge extends StatelessWidget {
+  const _ZoomBadge({required this.zoom, required this.downloadedMax});
+
+  final int zoom;
+  final int? downloadedMax;
+
+  @override
+  Widget build(BuildContext context) {
+    final overzoomed = downloadedMax != null && zoom > downloadedMax!;
+    final color = overzoomed ? const Color(0xFFFFB020) : AppColors.textDim;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.panel.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (overzoomed) ...[
+            Icon(Icons.warning_amber_rounded, size: 12, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            overzoomed ? 'z$zoom › baixado z$downloadedMax' : 'z$zoom',
+            style: TextStyle(
+                color: color, fontSize: 11, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
