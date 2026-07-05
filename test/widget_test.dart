@@ -13,7 +13,7 @@ void main() {
   });
 
   test('cada fonte de tiles tem um storeName único', () {
-    final names = TileSources.all.map((s) => s.storeName).toSet();
-    expect(names.length, TileSources.all.length);
+    final names = TileSources.defaults.map((s) => s.storeName).toSet();
+    expect(names.length, TileSources.defaults.length);
   });
 }

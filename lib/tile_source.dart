@@ -11,6 +11,7 @@ class TileSource {
     required this.maxNativeZoom,
     required this.attribution,
     this.subdomains = const [],
+    this.custom = false,
   });
 
   /// Identificador estável usado como nome do store no FMTC. Não renomear.
@@ -21,11 +22,33 @@ class TileSource {
   final String attribution;
   final List<String> subdomains;
 
+  /// Fonte adicionada pelo usuário (pode ser removida).
+  final bool custom;
+
   String get storeName => 'src_$id';
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'urlTemplate': urlTemplate,
+        'maxNativeZoom': maxNativeZoom,
+        'attribution': attribution,
+        'subdomains': subdomains,
+      };
+
+  factory TileSource.fromJson(Map<String, dynamic> j) => TileSource(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        urlTemplate: j['urlTemplate'] as String,
+        maxNativeZoom: (j['maxNativeZoom'] as num?)?.toInt() ?? 18,
+        attribution: j['attribution'] as String? ?? '',
+        subdomains:
+            (j['subdomains'] as List<dynamic>?)?.cast<String>() ?? const [],
+        custom: true,
+      );
 }
 
 /// Fontes padrão do app. Bing ficou de fora de propósito (descontinuado + quadkey).
-/// Editável no futuro pela tela "Fontes do mapa" (passo 7).
 class TileSources {
   static const esri = TileSource(
     id: 'esri_world_imagery',
@@ -45,8 +68,5 @@ class TileSources {
     subdomains: ['a', 'b', 'c'],
   );
 
-  static const all = [esri, osmTopo];
-
-  /// Fonte ativa por padrão. Em passos futuros isso vem da persistência.
-  static const active = esri;
+  static const defaults = [esri, osmTopo];
 }

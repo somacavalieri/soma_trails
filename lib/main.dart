@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 
 import 'map_screen.dart';
+import 'source_manager.dart';
 import 'theme.dart';
-import 'tile_source.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -11,10 +11,8 @@ Future<void> main() async {
   // Backend de cache offline (ObjectBox). Precisa vir antes de qualquer store.
   await FMTCObjectBoxBackend().initialise();
 
-  // Um store por fonte de tiles. `create()` é idempotente (não recria se já existe).
-  for (final source in TileSources.all) {
-    await FMTCStore(source.storeName).manage.create();
-  }
+  // Cria os stores das fontes padrão antes do primeiro tile.
+  await SourceManager.ensureDefaultStores();
 
   runApp(const SomaTrailsApp());
 }

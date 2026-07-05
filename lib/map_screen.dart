@@ -12,8 +12,9 @@ import 'models/track.dart';
 import 'point_manager.dart';
 import 'points_panel.dart';
 import 'recording_hud.dart';
+import 'source_manager.dart';
+import 'sources_screen.dart';
 import 'theme.dart';
-import 'tile_source.dart';
 import 'track_manager.dart';
 import 'track_recorder.dart';
 import 'tracks_panel.dart';
@@ -38,6 +39,7 @@ class _MapScreenState extends State<MapScreen> {
   final _location = LocationService();
   final _tracks = TrackManager();
   final _points = PointManager();
+  final _sources = SourceManager();
   late final TrackRecorder _recorder = TrackRecorder(_location);
   StreamSubscription<Position>? _positionSub;
 
@@ -45,7 +47,6 @@ class _MapScreenState extends State<MapScreen> {
   bool _follow = false;
 
   static const _serraDoCipo = LatLng(-19.3690, -43.5896);
-  static const TileSource _source = TileSources.active;
 
   @override
   void initState() {
@@ -54,6 +55,8 @@ class _MapScreenState extends State<MapScreen> {
     _recorder.addListener(_onChange);
     _points.addListener(_onChange);
     _points.load();
+    _sources.addListener(_onChange);
+    _sources.load();
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -71,6 +74,7 @@ class _MapScreenState extends State<MapScreen> {
     _tracks.removeListener(_onChange);
     _recorder.removeListener(_onChange);
     _points.removeListener(_onChange);
+    _sources.removeListener(_onChange);
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
@@ -280,6 +284,12 @@ class _MapScreenState extends State<MapScreen> {
     ];
   }
 
+  void _openSources() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => SourcesScreen(manager: _sources)),
+    );
+  }
+
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$feature — em breve')),
@@ -374,13 +384,15 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                urlTemplate: _source.urlTemplate,
-                subdomains: _source.subdomains,
+                key: ValueKey(_sources.active.id),
+                urlTemplate: _sources.active.urlTemplate,
+                subdomains: _sources.active.subdomains,
                 userAgentPackageName: 'dev.soma.soma_trails',
-                maxNativeZoom: _source.maxNativeZoom,
+                maxNativeZoom: _sources.active.maxNativeZoom,
                 tileProvider: FMTCTileProvider(
                   stores: {
-                    _source.storeName: BrowseStoreStrategy.readUpdateCreate,
+                    _sources.active.storeName:
+                        BrowseStoreStrategy.readUpdateCreate,
                   },
                 ),
               ),
@@ -426,8 +438,10 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                 ),
               ],
-              const RichAttributionWidget(
-                attributions: [TextSourceAttribution('Esri World Imagery')],
+              RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution(_sources.active.attribution),
+                ],
               ),
             ],
           ),
@@ -440,6 +454,13 @@ class _MapScreenState extends State<MapScreen> {
               right: 12,
               child: RecordingHud(recorder: _recorder),
             ),
+
+          // Camadas (fontes do mapa)
+          Positioned(
+            left: 12,
+            top: topInset + (_recorder.isActive ? 96 : 24),
+            child: _MapIconButton(icon: Icons.layers, onTap: _openSources),
+          ),
 
           // Zoom +/-
           Positioned(
@@ -504,6 +525,32 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Botão redondo escuro sobre o mapa (camadas, etc.).
+class _MapIconButton extends StatelessWidget {
+  const _MapIconButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.panel.withValues(alpha: 0.92),
+      borderRadius: BorderRadius.circular(14),
+      elevation: 2,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Icon(icon, color: Colors.white, size: 24),
+        ),
       ),
     );
   }
