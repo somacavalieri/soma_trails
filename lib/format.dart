@@ -17,7 +17,13 @@ String formatDurationShort(Duration d) {
   return '$m min';
 }
 
-String formatKm(double km) => '${km.toStringAsFixed(1)} km';
+/// Unidade de distância. Alterado pelas configurações (default: km).
+bool useMilesUnit = false;
+
+String formatKm(double km) {
+  if (useMilesUnit) return '${(km * 0.621371).toStringAsFixed(1)} mi';
+  return '${km.toStringAsFixed(1)} km';
+}
 
 /// Data/hora relativa: "Hoje · 14:05", "Ontem · 16:20", "24/06 · 07:45".
 String formatWhen(DateTime when, {DateTime? now}) {

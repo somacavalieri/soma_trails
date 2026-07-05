@@ -14,6 +14,8 @@ import 'models/track.dart';
 import 'point_manager.dart';
 import 'points_panel.dart';
 import 'recording_hud.dart';
+import 'settings_controller.dart';
+import 'settings_screen.dart';
 import 'source_manager.dart';
 import 'sources_screen.dart';
 import 'theme.dart';
@@ -43,6 +45,7 @@ class _MapScreenState extends State<MapScreen> {
   final _points = PointManager();
   final _sources = SourceManager();
   final _download = OfflineDownloadController();
+  late final SettingsController _settings = SettingsController(_sources);
   late final TrackRecorder _recorder = TrackRecorder(_location);
   StreamSubscription<Position>? _positionSub;
 
@@ -62,6 +65,8 @@ class _MapScreenState extends State<MapScreen> {
     _sources.load();
     _download.addListener(_onChange);
     _download.load();
+    _settings.addListener(_onChange);
+    _settings.load();
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -82,6 +87,7 @@ class _MapScreenState extends State<MapScreen> {
     _sources.removeListener(_onChange);
     _download.removeListener(_onChange);
     _download.dispose();
+    _settings.removeListener(_onChange);
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
@@ -297,6 +303,12 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  void _openSettings() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => SettingsScreen(settings: _settings)),
+    );
+  }
+
   void _openDownload() {
     LatLngBounds bounds;
     try {
@@ -341,12 +353,6 @@ class _MapScreenState extends State<MapScreen> {
         .any((r) => r.sourceId == _sources.active.id && r.contains(center));
   }
 
-  void _comingSoon(String feature) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$feature — em breve')),
-    );
-  }
-
   void _zoomBy(double delta) {
     final camera = _mapController.camera;
     final target = (camera.zoom + delta).clamp(_cameraMinZoom, _cameraMaxZoom);
@@ -358,11 +364,19 @@ class _MapScreenState extends State<MapScreen> {
   // ---- Camadas -----------------------------------------------------------
 
   List<Polyline> _trackPolylines() {
+    final hc = _settings.highContrast;
+    final width = hc ? 6.0 : 4.0;
     final lines = <Polyline>[];
     for (final t in _tracks.tracks) {
       if (!t.visible) continue;
       for (final seg in t.segments) {
-        lines.add(Polyline(points: seg, color: t.color, strokeWidth: 4));
+        lines.add(Polyline(
+          points: seg,
+          color: t.color,
+          strokeWidth: width,
+          borderColor: hc ? Colors.black : const Color(0x00000000),
+          borderStrokeWidth: hc ? 2 : 0,
+        ));
       }
     }
     return lines;
@@ -397,13 +411,14 @@ class _MapScreenState extends State<MapScreen> {
 
   List<Polyline> _recordingPolylines() {
     if (!_recorder.isActive) return const [];
+    final width = _settings.highContrast ? 7.0 : 5.0;
     return [
       for (final seg in _recorder.liveSegments)
         if (seg.length >= 2)
           Polyline(
             points: seg,
             color: AppColors.accent,
-            strokeWidth: 5,
+            strokeWidth: width,
             borderColor: Colors.black.withValues(alpha: 0.5),
             borderStrokeWidth: 1.5,
           ),
@@ -577,7 +592,7 @@ class _MapScreenState extends State<MapScreen> {
               onTrilhas: _openTracks,
               onTrajeto: _openTrajeto,
               onBaixar: _openDownload,
-              onAjustes: () => _comingSoon('Ajustes'),
+              onAjustes: _openSettings,
             ),
           ),
         ],

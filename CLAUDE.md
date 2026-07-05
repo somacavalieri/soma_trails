@@ -15,7 +15,11 @@ The three features that define success:
 
 ## Current state
 
-**Scaffolded and building (plan step 1 done).** The Flutter project lives at the repo root (Android-only, package `dev.soma.soma_trails`). `flutter build apk --release` produces a signed APK at `build/app/outputs/flutter-apk/app-release.apk`; since the repo sits inside Google Drive, the APK auto-syncs — install on the S24 Ultra straight from the Drive app. `lib/main.dart` is still the step-1 "hello map" (online Esri tiles); FMTC browse caching is the next step (plan step 2).
+**MVP feature-complete, pending on-device testing.** The Flutter project lives at the repo root (Android-only, package `dev.soma.soma_trails`). `flutter build apk --release` produces a signed APK at `build/app/outputs/flutter-apk/app-release.apk`; since the repo sits inside Google Drive, the APK auto-syncs — install on the S24 Ultra straight from the Drive app.
+
+Plan steps 1–8 and 10 are implemented and analyze/test-clean; step 9 is the field validation (airplane-mode + screen-off ride), not code. Deferred to a follow-up: track folders + multi-select (step-4 leftover) and "open with" GPX intents. Working features: offline-aware Esri/OSM-Topo tiles with FMTC browse cache + overzoom; GPS dot + recenter/follow; import many GPX (colored polylines, waypoints, color/rename/show-hide); record breadcrumb (foreground service, HUD, auto-save GPX, crash-resume, export); long-press points; tile-source screen; area/track satellite download wizard + regions management + "Offline pronto" chip; settings (keep-screen-on via native channel, clear browse cache, high contrast, km/mi).
+
+Code layout: `lib/` has one file per component — `map_screen.dart` (the single screen wiring it all), `*_manager.dart` / `*_controller.dart` (ChangeNotifier state: tracks, points, sources, download, recorder, settings), `*_panel.dart` / `*_screen.dart` (UI), `models/`, `gpx_parser.dart`, `format.dart`, `theme.dart`. State is plain `ChangeNotifier` + listeners in MapScreen (no state-management package). Native keep-screen-on lives in `MainActivity.kt` via a MethodChannel (`dev.soma.soma_trails/screen`).
 
 Planning material:
 - `PRD-app-trilhas-offline.md` — the full PRD, locked decisions, MVP scope, architecture, and incremental implementation plan. **Read this first for any implementation work** — it is the source of truth.
