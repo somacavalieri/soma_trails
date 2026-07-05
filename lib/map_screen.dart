@@ -52,6 +52,8 @@ class _MapScreenState extends State<MapScreen> {
   Position? _position;
   bool _follow = false;
   double _zoom = 13;
+  bool _showDebug = true; // painel de diagnóstico do GPS (temporário)
+  Timer? _debugTimer;
 
   static const _serraDoCipo = LatLng(-19.3690, -43.5896);
 
@@ -78,6 +80,10 @@ class _MapScreenState extends State<MapScreen> {
       if (mounted && _recorder.needsAutoResume) _resumeRecording();
     });
     _startLocation(recenter: false);
+    // Mantém o painel de diagnóstico (tempo desde o último fix) atualizado.
+    _debugTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted && _showDebug) setState(() {});
+    });
   }
 
   @override
@@ -89,6 +95,7 @@ class _MapScreenState extends State<MapScreen> {
     _download.removeListener(_onChange);
     _download.dispose();
     _settings.removeListener(_onChange);
+    _debugTimer?.cancel();
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
@@ -457,6 +464,10 @@ class _MapScreenState extends State<MapScreen> {
     final bottomInset = MediaQuery.of(context).padding.bottom;
     final topInset = MediaQuery.of(context).padding.top;
     final startPoint = _recorder.startPoint;
+    // Controles do topo descem quando o HUD de gravação ou o painel de debug
+    // ocupam o topo.
+    final controlsTop =
+        topInset + (_recorder.isActive ? 96.0 : 24.0) + (_showDebug ? 62.0 : 0.0);
 
     return Scaffold(
       body: Stack(
@@ -543,8 +554,22 @@ class _MapScreenState extends State<MapScreen> {
               child: RecordingHud(recorder: _recorder),
             ),
 
+          // Painel de diagnóstico do GPS (temporário; toque para esconder)
+          if (_showDebug)
+            Positioned(
+              top: topInset + 4,
+              left: 8,
+              right: 8,
+              child: _GpsDebugPanel(
+                location: _location,
+                recorder: _recorder,
+                position: _position,
+                onHide: () => setState(() => _showDebug = false),
+              ),
+            ),
+
           // Chip "Offline pronto" (centro coberto por região baixada)
-          if (!_recorder.isActive && _offlineReady())
+          if (!_recorder.isActive && !_showDebug && _offlineReady())
             Positioned(
               top: topInset + 28,
               left: 0,
@@ -555,14 +580,14 @@ class _MapScreenState extends State<MapScreen> {
           // Camadas (fontes do mapa)
           Positioned(
             left: 12,
-            top: topInset + (_recorder.isActive ? 96 : 24),
+            top: controlsTop,
             child: _MapIconButton(icon: Icons.layers, onTap: _openSources),
           ),
 
           // Zoom +/- com indicador do nível atual
           Positioned(
             right: 12,
-            top: topInset + (_recorder.isActive ? 96 : 24),
+            top: controlsTop,
             child: Column(
               children: [
                 _ZoomControls(
@@ -631,6 +656,74 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Painel de diagnóstico do GPS (temporário, para depurar a gravação).
+class _GpsDebugPanel extends StatelessWidget {
+  const _GpsDebugPanel({
+    required this.location,
+    required this.recorder,
+    required this.position,
+    required this.onHide,
+  });
+
+  final LocationService location;
+  final TrackRecorder recorder;
+  final Position? position;
+  final VoidCallback onHide;
+
+  @override
+  Widget build(BuildContext context) {
+    final acc = position?.accuracy;
+    final sinceFix = location.lastFixAt == null
+        ? '—'
+        : '${DateTime.now().difference(location.lastFixAt!).inSeconds}s';
+    final mode = location.isForeground ? 'foreground' : 'normal';
+    final rec = recorder.isActive
+        ? ' · rec ${recorder.recordedPointCount}pts drop ${recorder.droppedByAccuracy}'
+        : '';
+    final err = location.lastError != null ? ' · ERRO' : '';
+
+    return Material(
+      color: Colors.black.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: onHide,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: DefaultTextStyle(
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontFamily: 'monospace',
+                height: 1.4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'GPS fixes ${location.fixCount} · último $sinceFix atrás · '
+                  '${acc == null ? 'sem fix' : 'prec ${acc.toStringAsFixed(0)}m'}',
+                  style: TextStyle(
+                    color: location.fixCount == 0
+                        ? const Color(0xFFFF6B6B)
+                        : Colors.white,
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+                Text('modo $mode$rec$err (toque p/ esconder)',
+                    style: const TextStyle(
+                        color: Color(0xFFB0B0B0),
+                        fontSize: 11,
+                        fontFamily: 'monospace')),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

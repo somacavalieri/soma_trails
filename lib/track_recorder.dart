@@ -50,6 +50,14 @@ class TrackRecorder extends ChangeNotifier {
   bool _needsAutoResume = false;
   bool get needsAutoResume => _needsAutoResume;
 
+  // Diagnóstico
+  int _droppedByAccuracy = 0;
+  int get droppedByAccuracy => _droppedByAccuracy;
+  double _lastAccuracy = 0;
+  double get lastAccuracy => _lastAccuracy;
+  int get recordedPointCount =>
+      _segments.fold(0, (n, s) => n + s.length);
+
   final List<RecordedTrack> _saved = [];
   List<RecordedTrack> get saved => List.unmodifiable(_saved);
 
@@ -249,7 +257,12 @@ class TrackRecorder extends ChangeNotifier {
 
   void _onPosition(Position pos) {
     if (_state != RecordingState.recording) return;
-    if (pos.accuracy > _accuracyCeilingMeters) return; // ponto ruim: ignora
+    _lastAccuracy = pos.accuracy;
+    if (pos.accuracy > _accuracyCeilingMeters) {
+      _droppedByAccuracy++; // ponto ruim: ignora
+      notifyListeners();
+      return;
+    }
     final p = LatLng(pos.latitude, pos.longitude);
     final seg = _segments.last;
     if (seg.isNotEmpty) {

@@ -28,6 +28,15 @@ class LocationService {
   Position? _last;
   Position? get last => _last;
 
+  // Diagnóstico (painel de depuração)
+  int _fixCount = 0;
+  DateTime? _lastFixAt;
+  Object? _lastError;
+  int get fixCount => _fixCount;
+  DateTime? get lastFixAt => _lastFixAt;
+  bool get isForeground => _foreground;
+  Object? get lastError => _lastError;
+
   Stream<Position> get positions => _controller.stream;
 
   static const LocationSettings _normal = LocationSettings(
@@ -91,9 +100,14 @@ class LocationService {
         .listen(
       (p) {
         _last = p;
+        _fixCount++;
+        _lastFixAt = DateTime.now();
         _controller.add(p);
       },
-      onError: _controller.addError,
+      onError: (Object e) {
+        _lastError = e;
+        _controller.addError(e);
+      },
     );
   }
 
