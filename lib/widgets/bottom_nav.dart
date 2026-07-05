@@ -9,6 +9,7 @@ class BottomNav extends StatelessWidget {
   const BottomNav({
     super.key,
     required this.visibleTrackCount,
+    required this.recording,
     required this.onTrilhas,
     required this.onTrajeto,
     required this.onBaixar,
@@ -16,6 +17,7 @@ class BottomNav extends StatelessWidget {
   });
 
   final int visibleTrackCount;
+  final bool recording;
   final VoidCallback onTrilhas;
   final VoidCallback onTrajeto;
   final VoidCallback onBaixar;
@@ -46,6 +48,7 @@ class BottomNav extends StatelessWidget {
           _NavItem(
             icon: Icons.timeline,
             label: 'Meu trajeto',
+            dotIndicator: recording,
             onTap: onTrajeto,
           ),
           _NavItem(
@@ -70,12 +73,16 @@ class _NavItem extends StatelessWidget {
     required this.label,
     required this.onTap,
     this.badge,
+    this.dotIndicator = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final String? badge;
+
+  /// Ponto vermelho pulsante (gravação em andamento).
+  final bool dotIndicator;
 
   @override
   Widget build(BuildContext context) {
@@ -112,6 +119,19 @@ class _NavItem extends StatelessWidget {
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
+                      ),
+                    ),
+                  if (dotIndicator)
+                    Positioned(
+                      right: -6,
+                      top: -4,
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFF4D4D),
+                          shape: BoxShape.circle,
                         ),
                       ),
                     ),

@@ -9,10 +9,13 @@ import 'package:latlong2/latlong.dart';
 import 'location_marker.dart';
 import 'location_service.dart';
 import 'models/track.dart';
+import 'recording_hud.dart';
 import 'theme.dart';
 import 'tile_source.dart';
 import 'track_manager.dart';
+import 'track_recorder.dart';
 import 'tracks_panel.dart';
+import 'trajeto_panel.dart';
 import 'widgets/bottom_nav.dart';
 
 /// Zoom máximo da câmera. Acima do `maxNativeZoom` da fonte o mapa escala os
@@ -32,6 +35,7 @@ class _MapScreenState extends State<MapScreen> {
   final _mapController = MapController();
   final _location = LocationService();
   final _tracks = TrackManager();
+  late final TrackRecorder _recorder = TrackRecorder(_location);
   StreamSubscription<Position>? _positionSub;
 
   Position? _position;
@@ -44,10 +48,15 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _tracks.addListener(_onChange);
-    // Ao abrir, enquadra as trilhas salvas (em vez do centro fixo) para você
-    // ver logo onde elas estão — a não ser que o GPS já esteja seguindo.
+    _recorder.addListener(_onChange);
     _tracks.load().then((_) {
-      if (mounted && !_follow) _fitToTracks(_tracks.tracks.where((t) => t.visible));
+      if (mounted && !_follow) {
+        _fitToTracks(_tracks.tracks.where((t) => t.visible));
+      }
+    });
+    // Se o app foi morto gravando, retoma automaticamente ao reabrir.
+    _recorder.init().then((_) {
+      if (mounted && _recorder.needsAutoResume) _resumeRecording();
     });
     _startLocation(recenter: false);
   }
@@ -55,7 +64,10 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _tracks.removeListener(_onChange);
+    _recorder.removeListener(_onChange);
+    _recorder.dispose();
     _positionSub?.cancel();
+    _location.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -64,21 +76,28 @@ class _MapScreenState extends State<MapScreen> {
 
   // ---- Localização -------------------------------------------------------
 
-  Future<void> _startLocation({required bool recenter}) async {
+  /// Garante permissão + serviço, liga o stream e assina o marcador.
+  Future<bool> _ensureLocation() async {
     final result = await _location.ensureReady();
-    if (!mounted) return;
+    if (!mounted) return false;
     if (result != LocationReadyResult.ready) {
       _showLocationProblem(result);
-      return;
+      return false;
     }
+    _location.start();
+    _positionSub ??= _location.positions.listen(_onPosition);
+    return true;
+  }
+
+  Future<void> _startLocation({required bool recenter}) async {
+    if (!await _ensureLocation()) return;
     if (recenter) {
       final last = await _location.lastKnown();
       if (last != null && mounted) {
         _mapController.move(_toLatLng(last), _followZoom);
       }
+      setState(() => _follow = true);
     }
-    _positionSub ??= _location.positions.listen(_onPosition);
-    if (recenter) setState(() => _follow = true);
   }
 
   void _onPosition(Position pos) {
@@ -128,9 +147,37 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  // ---- Trilhas -----------------------------------------------------------
+  // ---- Gravação ----------------------------------------------------------
 
-  /// Enquadra o mapa em uma ou mais trilhas (seus segmentos + waypoints).
+  Future<void> _startRecording() async {
+    if (!await _ensureLocation()) return;
+    await _recorder.start();
+    setState(() => _follow = true);
+    if (_position != null) {
+      _mapController.move(_toLatLng(_position!), _followZoom);
+    }
+  }
+
+  Future<void> _resumeRecording() async {
+    if (!await _ensureLocation()) return;
+    await _recorder.resume();
+    setState(() => _follow = true);
+  }
+
+  Future<void> _stopRecording() async {
+    final track = await _recorder.stop();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(track == null
+            ? 'Gravação descartada (sem pontos).'
+            : 'Trajeto salvo em "Meu trajeto".'),
+      ),
+    );
+  }
+
+  // ---- Trilhas / trajetos ------------------------------------------------
+
   void _fitToTracks(Iterable<Track> tracks) {
     final points = [
       for (final t in tracks) ...[
@@ -138,6 +185,10 @@ class _MapScreenState extends State<MapScreen> {
         for (final w in t.waypoints) w.point,
       ],
     ];
+    _fitToPoints(points);
+  }
+
+  void _fitToPoints(List<LatLng> points) {
     if (points.isEmpty) return;
     _mapController.fitCamera(
       CameraFit.bounds(
@@ -152,13 +203,24 @@ class _MapScreenState extends State<MapScreen> {
       context,
       _tracks,
       onZoomToTrack: (track) {
-        Navigator.pop(context); // fecha o painel
+        Navigator.pop(context);
         _fitToTracks([track]);
       },
       onImported: (imported) {
-        // Novas trilhas podem estar longe do centro atual; mostra-as.
         setState(() => _follow = false);
         _fitToTracks(imported);
+      },
+    );
+  }
+
+  void _openTrajeto() {
+    showTrajetoPanel(
+      context,
+      _recorder,
+      onStartRecording: _startRecording,
+      onShowTrack: (track) {
+        setState(() => _follow = false);
+        _fitToPoints([for (final seg in track.segments) ...seg]);
       },
     );
   }
@@ -177,7 +239,7 @@ class _MapScreenState extends State<MapScreen> {
 
   static LatLng _toLatLng(Position p) => LatLng(p.latitude, p.longitude);
 
-  // ---- Camadas de trilha -------------------------------------------------
+  // ---- Camadas -----------------------------------------------------------
 
   List<Polyline> _trackPolylines() {
     final lines = <Polyline>[];
@@ -204,9 +266,8 @@ class _MapScreenState extends State<MapScreen> {
             child: GestureDetector(
               onTap: () {
                 if (w.name != null && w.name!.isNotEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(w.name!)),
-                  );
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(w.name!)));
                 }
               },
               child: Icon(Icons.place, color: t.color, size: 28),
@@ -218,10 +279,28 @@ class _MapScreenState extends State<MapScreen> {
     return markers;
   }
 
+  List<Polyline> _recordingPolylines() {
+    if (!_recorder.isActive) return const [];
+    return [
+      for (final seg in _recorder.liveSegments)
+        if (seg.length >= 2)
+          Polyline(
+            points: seg,
+            color: AppColors.accent,
+            strokeWidth: 5,
+            borderColor: Colors.black.withValues(alpha: 0.5),
+            borderStrokeWidth: 1.5,
+          ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final pos = _position;
     final bottomInset = MediaQuery.of(context).padding.bottom;
+    final topInset = MediaQuery.of(context).padding.top;
+    final startPoint = _recorder.startPoint;
+
     return Scaffold(
       body: Stack(
         children: [
@@ -233,7 +312,6 @@ class _MapScreenState extends State<MapScreen> {
               minZoom: _cameraMinZoom,
               maxZoom: _cameraMaxZoom,
               onMapEvent: _onMapEvent,
-              // Norte fixo: o mapa não rotaciona (decisão travada no PRD).
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
@@ -252,6 +330,18 @@ class _MapScreenState extends State<MapScreen> {
               ),
               PolylineLayer(polylines: _trackPolylines()),
               MarkerLayer(markers: _waypointMarkers()),
+              PolylineLayer(polylines: _recordingPolylines()),
+              if (startPoint != null)
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: startPoint,
+                      width: 22,
+                      height: 22,
+                      child: const _StartPin(),
+                    ),
+                  ],
+                ),
               if (pos != null) ...[
                 CircleLayer(
                   circles: [
@@ -284,14 +374,27 @@ class _MapScreenState extends State<MapScreen> {
               ),
             ],
           ),
+
+          // HUD de gravação (topo)
+          if (_recorder.isActive)
+            Positioned(
+              top: topInset + 12,
+              left: 12,
+              right: 12,
+              child: RecordingHud(recorder: _recorder),
+            ),
+
+          // Zoom +/-
           Positioned(
             right: 12,
-            top: MediaQuery.of(context).padding.top + 24,
+            top: topInset + (_recorder.isActive ? 96 : 24),
             child: _ZoomControls(
               onZoomIn: () => _zoomBy(1),
               onZoomOut: () => _zoomBy(-1),
             ),
           ),
+
+          // Recentralizar
           Positioned(
             right: 16,
             bottom: 96 + bottomInset,
@@ -304,18 +407,102 @@ class _MapScreenState extends State<MapScreen> {
                   Icon(_follow ? Icons.my_location : Icons.location_searching),
             ),
           ),
+
+          // Controles de gravação (canto inferior esquerdo)
+          Positioned(
+            left: 16,
+            bottom: 96 + bottomInset,
+            child: _RecordControls(
+              state: _recorder.state,
+              onStart: _startRecording,
+              onPause: _recorder.pause,
+              onResume: _resumeRecording,
+              onStop: _stopRecording,
+            ),
+          ),
+
+          // Barra inferior
           Align(
             alignment: Alignment.bottomCenter,
             child: BottomNav(
               visibleTrackCount: _tracks.visibleCount,
+              recording: _recorder.isRecording,
               onTrilhas: _openTracks,
-              onTrajeto: () => _comingSoon('Meu trajeto'),
+              onTrajeto: _openTrajeto,
               onBaixar: () => _comingSoon('Baixar satélite'),
               onAjustes: () => _comingSoon('Ajustes'),
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Pino de início do trajeto gravado.
+class _StartPin extends StatelessWidget {
+  const _StartPin();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.accent,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+      ),
+    );
+  }
+}
+
+/// Botão(ões) de gravação: gravar (idle) ou pausar/retomar + parar (ativo).
+class _RecordControls extends StatelessWidget {
+  const _RecordControls({
+    required this.state,
+    required this.onStart,
+    required this.onPause,
+    required this.onResume,
+    required this.onStop,
+  });
+
+  final RecordingState state;
+  final VoidCallback onStart;
+  final VoidCallback onPause;
+  final VoidCallback onResume;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) {
+    if (state == RecordingState.idle) {
+      return FloatingActionButton(
+        heroTag: 'record',
+        backgroundColor: const Color(0xFFE53935),
+        foregroundColor: Colors.white,
+        onPressed: onStart,
+        child: const Icon(Icons.fiber_manual_record, size: 30),
+      );
+    }
+    final recording = state == RecordingState.recording;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FloatingActionButton(
+          heroTag: 'record_toggle',
+          backgroundColor: const Color(0xFFE53935),
+          foregroundColor: Colors.white,
+          onPressed: recording ? onPause : onResume,
+          child: Icon(recording ? Icons.pause : Icons.play_arrow),
+        ),
+        const SizedBox(width: 12),
+        FloatingActionButton(
+          heroTag: 'record_stop',
+          backgroundColor: AppColors.panel,
+          foregroundColor: Colors.white,
+          onPressed: onStop,
+          child: const Icon(Icons.stop),
+        ),
+      ],
     );
   }
 }
