@@ -8,8 +8,12 @@ import 'package:latlong2/latlong.dart';
 
 import 'location_marker.dart';
 import 'location_service.dart';
+import 'models/track.dart';
 import 'theme.dart';
 import 'tile_source.dart';
+import 'track_manager.dart';
+import 'tracks_panel.dart';
+import 'widgets/bottom_nav.dart';
 
 /// Zoom máximo da câmera. Acima do `maxNativeZoom` da fonte o mapa escala os
 /// tiles (overzoom) em vez de mostrar tela cinza.
@@ -27,12 +31,10 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final _mapController = MapController();
   final _location = LocationService();
+  final _tracks = TrackManager();
   StreamSubscription<Position>? _positionSub;
 
   Position? _position;
-
-  /// Modo "seguir": o mapa acompanha a posição. Desliga quando o usuário
-  /// arrasta o mapa manualmente.
   bool _follow = false;
 
   static const _serraDoCipo = LatLng(-19.3690, -43.5896);
@@ -41,35 +43,36 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
-    // Tenta ligar o GPS já na abertura; se o usuário negar, o mapa segue
-    // funcionando e ele pode tentar de novo pelo botão de recentralizar.
+    _tracks.addListener(_onChange);
+    _tracks.load();
     _startLocation(recenter: false);
   }
 
   @override
   void dispose() {
+    _tracks.removeListener(_onChange);
     _positionSub?.cancel();
     _mapController.dispose();
     super.dispose();
   }
 
+  void _onChange() => setState(() {});
+
+  // ---- Localização -------------------------------------------------------
+
   Future<void> _startLocation({required bool recenter}) async {
     final result = await _location.ensureReady();
     if (!mounted) return;
-
     if (result != LocationReadyResult.ready) {
       _showLocationProblem(result);
       return;
     }
-
-    // Centraliza rápido na última posição conhecida enquanto o fix chega.
     if (recenter) {
       final last = await _location.lastKnown();
       if (last != null && mounted) {
         _mapController.move(_toLatLng(last), _followZoom);
       }
     }
-
     _positionSub ??= _location.positions.listen(_onPosition);
     if (recenter) setState(() => _follow = true);
   }
@@ -92,7 +95,6 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _onMapEvent(MapEvent event) {
-    // Se o usuário arrastou o mapa, para de seguir.
     if (_follow && event.source == MapEventSource.onDrag) {
       setState(() => _follow = false);
     }
@@ -104,10 +106,7 @@ class _MapScreenState extends State<MapScreen> {
           'Ligue a localização (GPS) do aparelho.',
           null,
         ),
-      LocationReadyResult.denied => (
-          'Permissão de localização negada.',
-          null,
-        ),
+      LocationReadyResult.denied => ('Permissão de localização negada.', null),
       LocationReadyResult.deniedForever => (
           'Permissão bloqueada. Abra as configurações do app.',
           ('Configurações', _location.openAppSettings),
@@ -115,7 +114,6 @@ class _MapScreenState extends State<MapScreen> {
       LocationReadyResult.ready => ('', null),
     };
     if (message.isEmpty) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -123,6 +121,35 @@ class _MapScreenState extends State<MapScreen> {
             ? null
             : SnackBarAction(label: action.$1, onPressed: action.$2),
       ),
+    );
+  }
+
+  // ---- Trilhas -----------------------------------------------------------
+
+  void _zoomToTrack(Track track) {
+    final points = [
+      for (final seg in track.segments) ...seg,
+      for (final w in track.waypoints) w.point,
+    ];
+    if (points.isEmpty) return;
+    _mapController.fitCamera(
+      CameraFit.bounds(
+        bounds: LatLngBounds.fromPoints(points),
+        padding: const EdgeInsets.all(48),
+      ),
+    );
+  }
+
+  void _openTracks() {
+    showTracksPanel(context, _tracks, onZoomToTrack: (track) {
+      Navigator.pop(context); // fecha o painel
+      _zoomToTrack(track);
+    });
+  }
+
+  void _comingSoon(String feature) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$feature — em breve')),
     );
   }
 
@@ -134,9 +161,51 @@ class _MapScreenState extends State<MapScreen> {
 
   static LatLng _toLatLng(Position p) => LatLng(p.latitude, p.longitude);
 
+  // ---- Camadas de trilha -------------------------------------------------
+
+  List<Polyline> _trackPolylines() {
+    final lines = <Polyline>[];
+    for (final t in _tracks.tracks) {
+      if (!t.visible) continue;
+      for (final seg in t.segments) {
+        lines.add(Polyline(points: seg, color: t.color, strokeWidth: 4));
+      }
+    }
+    return lines;
+  }
+
+  List<Marker> _waypointMarkers() {
+    final markers = <Marker>[];
+    for (final t in _tracks.tracks) {
+      if (!t.visible) continue;
+      for (final w in t.waypoints) {
+        markers.add(
+          Marker(
+            point: w.point,
+            width: 30,
+            height: 30,
+            alignment: Alignment.topCenter,
+            child: GestureDetector(
+              onTap: () {
+                if (w.name != null && w.name!.isNotEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(w.name!)),
+                  );
+                }
+              },
+              child: Icon(Icons.place, color: t.color, size: 28),
+            ),
+          ),
+        );
+      }
+    }
+    return markers;
+  }
+
   @override
   Widget build(BuildContext context) {
     final pos = _position;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Scaffold(
       body: Stack(
         children: [
@@ -165,6 +234,8 @@ class _MapScreenState extends State<MapScreen> {
                   },
                 ),
               ),
+              PolylineLayer(polylines: _trackPolylines()),
+              MarkerLayer(markers: _waypointMarkers()),
               if (pos != null) ...[
                 CircleLayer(
                   circles: [
@@ -192,14 +263,14 @@ class _MapScreenState extends State<MapScreen> {
                   ],
                 ),
               ],
-              RichAttributionWidget(
-                attributions: [TextSourceAttribution(_source.attribution)],
+              const RichAttributionWidget(
+                attributions: [TextSourceAttribution('Esri World Imagery')],
               ),
             ],
           ),
           Positioned(
             right: 12,
-            top: MediaQuery.of(context).padding.top + 96,
+            top: MediaQuery.of(context).padding.top + 24,
             child: _ZoomControls(
               onZoomIn: () => _zoomBy(1),
               onZoomOut: () => _zoomBy(-1),
@@ -207,13 +278,24 @@ class _MapScreenState extends State<MapScreen> {
           ),
           Positioned(
             right: 16,
-            bottom: 24 + MediaQuery.of(context).padding.bottom,
+            bottom: 96 + bottomInset,
             child: FloatingActionButton(
               heroTag: 'recenter',
               backgroundColor: AppColors.accent,
               foregroundColor: Colors.white,
               onPressed: _onRecenter,
-              child: Icon(_follow ? Icons.my_location : Icons.location_searching),
+              child:
+                  Icon(_follow ? Icons.my_location : Icons.location_searching),
+            ),
+          ),
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: BottomNav(
+              visibleTrackCount: _tracks.visibleCount,
+              onTrilhas: _openTracks,
+              onTrajeto: () => _comingSoon('Meu trajeto'),
+              onBaixar: () => _comingSoon('Baixar satélite'),
+              onAjustes: () => _comingSoon('Ajustes'),
             ),
           ),
         ],
