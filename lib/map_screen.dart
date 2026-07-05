@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'location_marker.dart';
+import 'location_service.dart';
 import 'theme.dart';
 import 'tile_source.dart';
 
@@ -10,6 +15,7 @@ import 'tile_source.dart';
 /// tiles (overzoom) em vez de mostrar tela cinza.
 const double _cameraMaxZoom = 20;
 const double _cameraMinZoom = 3;
+const double _followZoom = 16;
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -20,14 +26,104 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final _mapController = MapController();
-  static const _serraDoCipo = LatLng(-19.3690, -43.5896);
+  final _location = LocationService();
+  StreamSubscription<Position>? _positionSub;
 
+  Position? _position;
+
+  /// Modo "seguir": o mapa acompanha a posição. Desliga quando o usuário
+  /// arrasta o mapa manualmente.
+  bool _follow = false;
+
+  static const _serraDoCipo = LatLng(-19.3690, -43.5896);
   static const TileSource _source = TileSources.active;
 
   @override
+  void initState() {
+    super.initState();
+    // Tenta ligar o GPS já na abertura; se o usuário negar, o mapa segue
+    // funcionando e ele pode tentar de novo pelo botão de recentralizar.
+    _startLocation(recenter: false);
+  }
+
+  @override
   void dispose() {
+    _positionSub?.cancel();
     _mapController.dispose();
     super.dispose();
+  }
+
+  Future<void> _startLocation({required bool recenter}) async {
+    final result = await _location.ensureReady();
+    if (!mounted) return;
+
+    if (result != LocationReadyResult.ready) {
+      _showLocationProblem(result);
+      return;
+    }
+
+    // Centraliza rápido na última posição conhecida enquanto o fix chega.
+    if (recenter) {
+      final last = await _location.lastKnown();
+      if (last != null && mounted) {
+        _mapController.move(_toLatLng(last), _followZoom);
+      }
+    }
+
+    _positionSub ??= _location.positions.listen(_onPosition);
+    if (recenter) setState(() => _follow = true);
+  }
+
+  void _onPosition(Position pos) {
+    if (!mounted) return;
+    setState(() => _position = pos);
+    if (_follow) {
+      _mapController.move(_toLatLng(pos), _mapController.camera.zoom);
+    }
+  }
+
+  void _onRecenter() {
+    if (_position != null) {
+      setState(() => _follow = true);
+      _mapController.move(_toLatLng(_position!), _followZoom);
+    } else {
+      _startLocation(recenter: true);
+    }
+  }
+
+  void _onMapEvent(MapEvent event) {
+    // Se o usuário arrastou o mapa, para de seguir.
+    if (_follow && event.source == MapEventSource.onDrag) {
+      setState(() => _follow = false);
+    }
+  }
+
+  void _showLocationProblem(LocationReadyResult result) {
+    final (message, action) = switch (result) {
+      LocationReadyResult.serviceDisabled => (
+          'Ligue a localização (GPS) do aparelho.',
+          null,
+        ),
+      LocationReadyResult.denied => (
+          'Permissão de localização negada.',
+          null,
+        ),
+      LocationReadyResult.deniedForever => (
+          'Permissão bloqueada. Abra as configurações do app.',
+          ('Configurações', _location.openAppSettings),
+        ),
+      LocationReadyResult.ready => ('', null),
+    };
+    if (message.isEmpty) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: action == null
+            ? null
+            : SnackBarAction(label: action.$1, onPressed: action.$2),
+      ),
+    );
   }
 
   void _zoomBy(double delta) {
@@ -36,20 +132,24 @@ class _MapScreenState extends State<MapScreen> {
     _mapController.move(camera.center, target);
   }
 
+  static LatLng _toLatLng(Position p) => LatLng(p.latitude, p.longitude);
+
   @override
   Widget build(BuildContext context) {
+    final pos = _position;
     return Scaffold(
       body: Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
-            options: const MapOptions(
+            options: MapOptions(
               initialCenter: _serraDoCipo,
               initialZoom: 13,
               minZoom: _cameraMinZoom,
               maxZoom: _cameraMaxZoom,
+              onMapEvent: _onMapEvent,
               // Norte fixo: o mapa não rotaciona (decisão travada no PRD).
-              interactionOptions: InteractionOptions(
+              interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
             ),
@@ -59,18 +159,41 @@ class _MapScreenState extends State<MapScreen> {
                 subdomains: _source.subdomains,
                 userAgentPackageName: 'dev.soma.soma_trails',
                 maxNativeZoom: _source.maxNativeZoom,
-                // Cache por navegação: cada tile buscado fica salvo no store.
-                // Offline, o mesmo tile carrega do disco sem rede.
                 tileProvider: FMTCTileProvider(
                   stores: {
                     _source.storeName: BrowseStoreStrategy.readUpdateCreate,
                   },
                 ),
               ),
+              if (pos != null) ...[
+                CircleLayer(
+                  circles: [
+                    CircleMarker(
+                      point: _toLatLng(pos),
+                      radius: pos.accuracy,
+                      useRadiusInMeter: true,
+                      color: const Color(0x222F7BFF),
+                      borderColor: const Color(0x552F7BFF),
+                      borderStrokeWidth: 1,
+                    ),
+                  ],
+                ),
+                MarkerLayer(
+                  markers: [
+                    Marker(
+                      point: _toLatLng(pos),
+                      width: 44,
+                      height: 44,
+                      child: LocationDot(
+                        headingRadians:
+                            headingToRadians(pos.heading, pos.speed),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               RichAttributionWidget(
-                attributions: [
-                  TextSourceAttribution(_source.attribution),
-                ],
+                attributions: [TextSourceAttribution(_source.attribution)],
               ),
             ],
           ),
@@ -80,6 +203,17 @@ class _MapScreenState extends State<MapScreen> {
             child: _ZoomControls(
               onZoomIn: () => _zoomBy(1),
               onZoomOut: () => _zoomBy(-1),
+            ),
+          ),
+          Positioned(
+            right: 16,
+            bottom: 24 + MediaQuery.of(context).padding.bottom,
+            child: FloatingActionButton(
+              heroTag: 'recenter',
+              backgroundColor: AppColors.accent,
+              foregroundColor: Colors.white,
+              onPressed: _onRecenter,
+              child: Icon(_follow ? Icons.my_location : Icons.location_searching),
             ),
           ),
         ],
