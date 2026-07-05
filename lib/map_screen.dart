@@ -115,7 +115,7 @@ class _MapScreenState extends State<MapScreen> {
       _showLocationProblem(result);
       return false;
     }
-    _location.start();
+    await _location.start();
     _positionSub ??= _location.positions.listen(_onPosition);
     return true;
   }

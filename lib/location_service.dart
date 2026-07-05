@@ -25,6 +25,9 @@ class LocationService {
   bool _foreground = false;
   bool _bound = false;
 
+  /// Serializa as (re)ligações do stream para nunca rodarem em paralelo.
+  Future<void> _bindLock = Future.value();
+
   Position? _last;
   Position? get last => _last;
 
@@ -79,36 +82,47 @@ class LocationService {
     };
   }
 
-  /// Liga o stream de posições (idempotente). Chamar após [ensureReady].
-  void start({bool foreground = false}) {
-    _foreground = foreground;
-    _bind();
-  }
-
-  /// Alterna entre modo normal e foreground service (gravação). Recria a fonte
-  /// interna; o stream público [positions] permanece o mesmo.
-  Future<void> setForeground(bool value) async {
-    if (_bound && _foreground == value) return;
-    _foreground = value;
-    _bind();
-  }
-
-  void _bind() {
+  /// Liga o stream de posições. Idempotente: se já está ligado, não religa
+  /// (evitar religar à toa é o que impede a corrida que congelava o GPS).
+  /// Chamar após [ensureReady].
+  Future<void> start({bool foreground = false}) async {
+    if (_bound) return;
     _bound = true;
-    _source?.cancel();
-    _source = Geolocator.getPositionStream(locationSettings: _settings())
-        .listen(
-      (p) {
-        _last = p;
-        _fixCount++;
-        _lastFixAt = DateTime.now();
-        _controller.add(p);
-      },
-      onError: (Object e) {
-        _lastError = e;
-        _controller.addError(e);
-      },
-    );
+    _foreground = foreground;
+    await _bind();
+  }
+
+  /// Alterna entre modo normal e foreground service (gravação). Só religa se o
+  /// modo realmente mudou; o stream público [positions] permanece o mesmo.
+  Future<void> setForeground(bool value) async {
+    if (_foreground == value) return;
+    _foreground = value;
+    await _bind();
+  }
+
+  /// (Re)liga o stream do geolocator. Serializado e esperando o cancelamento
+  /// do stream anterior TERMINAR antes de religar — senão o "stop" nativo
+  /// atrasado do stream antigo mata o novo (no One UI: 1 fix e congela).
+  Future<void> _bind() {
+    return _bindLock = _bindLock.then((_) async {
+      _bound = true;
+      final old = _source;
+      _source = null;
+      await old?.cancel();
+      _source = Geolocator.getPositionStream(locationSettings: _settings())
+          .listen(
+        (p) {
+          _last = p;
+          _fixCount++;
+          _lastFixAt = DateTime.now();
+          _controller.add(p);
+        },
+        onError: (Object e) {
+          _lastError = e;
+          _controller.addError(e);
+        },
+      );
+    });
   }
 
   Future<Position?> lastKnown() => Geolocator.getLastKnownPosition();
