@@ -1,0 +1,21 @@
+# macOS / Google Drive
+.DS_Store
+Icon?
+.tmp.drivedownload/
+.tmp.driveupload/
+
+# Flutter/Dart (para quando o projeto for scaffoldado)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+.idea/
+.gradle/
+local.properties
+
+# Chaves de assinatura do APK — nunca commitar
+*.jks
+*.keystore
+key.properties
