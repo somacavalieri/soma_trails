@@ -1,0 +1,99 @@
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+
+/// Uma região de satélite baixada para uso offline.
+///
+/// Cada região tem seu próprio store no FMTC (`storeName`), então excluí-la
+/// libera exatamente o espaço dela. Fica associada a uma fonte ([sourceId]) —
+/// só é renderizada quando essa fonte está ativa.
+class DownloadRegion {
+  DownloadRegion({
+    required this.id,
+    required this.name,
+    required this.sourceId,
+    required this.south,
+    required this.west,
+    required this.north,
+    required this.east,
+    required this.minZoom,
+    required this.maxZoom,
+    required this.tiles,
+    required this.sizeKiB,
+    required this.createdAt,
+  });
+
+  final String id;
+  String name;
+  final String sourceId;
+  final double south;
+  final double west;
+  final double north;
+  final double east;
+  final int minZoom;
+  final int maxZoom;
+  final int tiles;
+  final double sizeKiB;
+  final DateTime createdAt;
+
+  String get storeName => 'rgn_$id';
+
+  LatLngBounds get bounds =>
+      LatLngBounds(LatLng(south, west), LatLng(north, east));
+
+  bool contains(LatLng p) =>
+      p.latitude >= south &&
+      p.latitude <= north &&
+      p.longitude >= west &&
+      p.longitude <= east;
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'sourceId': sourceId,
+        'south': south,
+        'west': west,
+        'north': north,
+        'east': east,
+        'minZoom': minZoom,
+        'maxZoom': maxZoom,
+        'tiles': tiles,
+        'sizeKiB': sizeKiB,
+        'createdAt': createdAt.toIso8601String(),
+      };
+
+  factory DownloadRegion.fromJson(Map<String, dynamic> j) => DownloadRegion(
+        id: j['id'] as String,
+        name: j['name'] as String,
+        sourceId: j['sourceId'] as String,
+        south: (j['south'] as num).toDouble(),
+        west: (j['west'] as num).toDouble(),
+        north: (j['north'] as num).toDouble(),
+        east: (j['east'] as num).toDouble(),
+        minZoom: (j['minZoom'] as num).toInt(),
+        maxZoom: (j['maxZoom'] as num).toInt(),
+        tiles: (j['tiles'] as num).toInt(),
+        sizeKiB: (j['sizeKiB'] as num).toDouble(),
+        createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
+            DateTime.fromMillisecondsSinceEpoch(0),
+      );
+}
+
+/// Estimativa mostrada antes de baixar.
+class DownloadEstimate {
+  const DownloadEstimate({
+    required this.tiles,
+    required this.sizeKiB,
+    required this.seconds,
+  });
+  final int tiles;
+  final double sizeKiB;
+  final int seconds;
+}
+
+/// Formata KiB em MB/GB legível.
+String formatSizeKiB(double kib) {
+  final mb = kib / 1024.0;
+  if (mb >= 1024) return '${(mb / 1024).toStringAsFixed(1)} GB';
+  if (mb >= 10) return '${mb.round()} MB';
+  return '${mb.toStringAsFixed(1)} MB';
+}

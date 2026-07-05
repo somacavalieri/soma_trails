@@ -6,6 +6,8 @@ import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'download_controller.dart';
+import 'download_wizard.dart';
 import 'location_marker.dart';
 import 'location_service.dart';
 import 'models/track.dart';
@@ -40,6 +42,7 @@ class _MapScreenState extends State<MapScreen> {
   final _tracks = TrackManager();
   final _points = PointManager();
   final _sources = SourceManager();
+  final _download = OfflineDownloadController();
   late final TrackRecorder _recorder = TrackRecorder(_location);
   StreamSubscription<Position>? _positionSub;
 
@@ -57,6 +60,8 @@ class _MapScreenState extends State<MapScreen> {
     _points.load();
     _sources.addListener(_onChange);
     _sources.load();
+    _download.addListener(_onChange);
+    _download.load();
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -75,6 +80,8 @@ class _MapScreenState extends State<MapScreen> {
     _recorder.removeListener(_onChange);
     _points.removeListener(_onChange);
     _sources.removeListener(_onChange);
+    _download.removeListener(_onChange);
+    _download.dispose();
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
@@ -290,6 +297,50 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  void _openDownload() {
+    LatLngBounds bounds;
+    try {
+      bounds = _mapController.camera.visibleBounds;
+    } catch (_) {
+      bounds = LatLngBounds(
+        const LatLng(-19.45, -43.70),
+        const LatLng(-19.29, -43.48),
+      );
+    }
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => DownloadWizard(
+        controller: _download,
+        sources: _sources,
+        tracks: _tracks,
+        initialBounds: bounds,
+      ),
+    ));
+  }
+
+  /// Stores do FMTC para o mapa: browse da fonte ativa (read/write) + regiões
+  /// baixadas dessa fonte (read) — assim os tiles baixados renderizam offline.
+  Map<String, BrowseStoreStrategy> _providerStores() {
+    final stores = <String, BrowseStoreStrategy>{
+      _sources.active.storeName: BrowseStoreStrategy.readUpdateCreate,
+    };
+    for (final s in _download.regionStoresFor(_sources.active.id)) {
+      stores[s] = BrowseStoreStrategy.read;
+    }
+    return stores;
+  }
+
+  /// "Offline pronto": o centro atual está coberto por uma região baixada.
+  bool _offlineReady() {
+    LatLng center;
+    try {
+      center = _mapController.camera.center;
+    } catch (_) {
+      return false;
+    }
+    return _download.regions
+        .any((r) => r.sourceId == _sources.active.id && r.contains(center));
+  }
+
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$feature — em breve')),
@@ -384,17 +435,13 @@ class _MapScreenState extends State<MapScreen> {
             ),
             children: [
               TileLayer(
-                key: ValueKey(_sources.active.id),
+                key: ValueKey(
+                    '${_sources.active.id}_${_download.regions.length}'),
                 urlTemplate: _sources.active.urlTemplate,
                 subdomains: _sources.active.subdomains,
                 userAgentPackageName: 'dev.soma.soma_trails',
                 maxNativeZoom: _sources.active.maxNativeZoom,
-                tileProvider: FMTCTileProvider(
-                  stores: {
-                    _sources.active.storeName:
-                        BrowseStoreStrategy.readUpdateCreate,
-                  },
-                ),
+                tileProvider: FMTCTileProvider(stores: _providerStores()),
               ),
               PolylineLayer(polylines: _trackPolylines()),
               MarkerLayer(markers: _waypointMarkers()),
@@ -453,6 +500,15 @@ class _MapScreenState extends State<MapScreen> {
               left: 12,
               right: 12,
               child: RecordingHud(recorder: _recorder),
+            ),
+
+          // Chip "Offline pronto" (centro coberto por região baixada)
+          if (!_recorder.isActive && _offlineReady())
+            Positioned(
+              top: topInset + 28,
+              left: 0,
+              right: 0,
+              child: const Center(child: _OfflineReadyChip()),
             ),
 
           // Camadas (fontes do mapa)
@@ -520,10 +576,39 @@ class _MapScreenState extends State<MapScreen> {
               recording: _recorder.isRecording,
               onTrilhas: _openTracks,
               onTrajeto: _openTrajeto,
-              onBaixar: () => _comingSoon('Baixar satélite'),
+              onBaixar: _openDownload,
               onAjustes: () => _comingSoon('Ajustes'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Chip verde "Offline pronto".
+class _OfflineReadyChip extends StatelessWidget {
+  const _OfflineReadyChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      decoration: BoxDecoration(
+        color: AppColors.panel.withValues(alpha: 0.95),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.ok.withValues(alpha: 0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: const [
+          Icon(Icons.check_circle, color: AppColors.ok, size: 16),
+          SizedBox(width: 6),
+          Text('Offline pronto',
+              style: TextStyle(
+                  color: AppColors.ok,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600)),
         ],
       ),
     );
