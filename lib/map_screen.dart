@@ -44,7 +44,11 @@ class _MapScreenState extends State<MapScreen> {
   void initState() {
     super.initState();
     _tracks.addListener(_onChange);
-    _tracks.load();
+    // Ao abrir, enquadra as trilhas salvas (em vez do centro fixo) para você
+    // ver logo onde elas estão — a não ser que o GPS já esteja seguindo.
+    _tracks.load().then((_) {
+      if (mounted && !_follow) _fitToTracks(_tracks.tracks.where((t) => t.visible));
+    });
     _startLocation(recenter: false);
   }
 
@@ -126,10 +130,13 @@ class _MapScreenState extends State<MapScreen> {
 
   // ---- Trilhas -----------------------------------------------------------
 
-  void _zoomToTrack(Track track) {
+  /// Enquadra o mapa em uma ou mais trilhas (seus segmentos + waypoints).
+  void _fitToTracks(Iterable<Track> tracks) {
     final points = [
-      for (final seg in track.segments) ...seg,
-      for (final w in track.waypoints) w.point,
+      for (final t in tracks) ...[
+        for (final seg in t.segments) ...seg,
+        for (final w in t.waypoints) w.point,
+      ],
     ];
     if (points.isEmpty) return;
     _mapController.fitCamera(
@@ -141,10 +148,19 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   void _openTracks() {
-    showTracksPanel(context, _tracks, onZoomToTrack: (track) {
-      Navigator.pop(context); // fecha o painel
-      _zoomToTrack(track);
-    });
+    showTracksPanel(
+      context,
+      _tracks,
+      onZoomToTrack: (track) {
+        Navigator.pop(context); // fecha o painel
+        _fitToTracks([track]);
+      },
+      onImported: (imported) {
+        // Novas trilhas podem estar longe do centro atual; mostra-as.
+        setState(() => _follow = false);
+        _fitToTracks(imported);
+      },
+    );
   }
 
   void _comingSoon(String feature) {

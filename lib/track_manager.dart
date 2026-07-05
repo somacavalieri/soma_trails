@@ -10,9 +10,16 @@ import 'models/track.dart';
 
 /// Resultado de uma importação, para dar feedback ao usuário.
 class ImportResult {
-  const ImportResult({required this.imported, required this.skipped});
+  const ImportResult({
+    required this.imported,
+    required this.skipped,
+    this.tracks = const [],
+  });
   final int imported;
   final int skipped;
+
+  /// As trilhas efetivamente importadas (para o mapa se ajustar a elas).
+  final List<Track> tracks;
 }
 
 /// Gerencia as trilhas importadas: importa GPX, persiste (arquivos + JSON),
@@ -97,7 +104,7 @@ class TrackManager extends ChangeNotifier {
     if (picked == null) return const ImportResult(imported: 0, skipped: 0);
 
     final dir = await _dir();
-    var imported = 0;
+    final importedTracks = <Track>[];
     var skipped = 0;
 
     for (final file in picked.files) {
@@ -115,7 +122,7 @@ class TrackManager extends ChangeNotifier {
         final id = _newId();
         final stored = File('${dir.path}/$id.gpx');
         await stored.writeAsString(xml);
-        _tracks.add(Track(
+        final track = Track(
           id: id,
           name: parsed.suggestedName?.trim().isNotEmpty == true
               ? parsed.suggestedName!.trim()
@@ -127,16 +134,21 @@ class TrackManager extends ChangeNotifier {
           segments: parsed.segments,
           waypoints: parsed.waypoints,
           distanceMeters: parsed.distanceMeters,
-        ));
-        imported++;
+        );
+        _tracks.add(track);
+        importedTracks.add(track);
       } catch (_) {
         skipped++;
       }
     }
 
-    if (imported > 0) await _save();
+    if (importedTracks.isNotEmpty) await _save();
     notifyListeners();
-    return ImportResult(imported: imported, skipped: skipped);
+    return ImportResult(
+      imported: importedTracks.length,
+      skipped: skipped,
+      tracks: importedTracks,
+    );
   }
 
   String? _readFileAsString(PlatformFile file) {

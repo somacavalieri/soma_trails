@@ -10,6 +10,7 @@ Future<void> showTracksPanel(
   BuildContext context,
   TrackManager manager, {
   required void Function(Track) onZoomToTrack,
+  required void Function(List<Track>) onImported,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -22,15 +23,21 @@ Future<void> showTracksPanel(
     builder: (sheetContext) => _TracksPanel(
       manager: manager,
       onZoomToTrack: onZoomToTrack,
+      onImported: onImported,
     ),
   );
 }
 
 class _TracksPanel extends StatelessWidget {
-  const _TracksPanel({required this.manager, required this.onZoomToTrack});
+  const _TracksPanel({
+    required this.manager,
+    required this.onZoomToTrack,
+    required this.onImported,
+  });
 
   final TrackManager manager;
   final void Function(Track) onZoomToTrack;
+  final void Function(List<Track>) onImported;
 
   Future<void> _import(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -40,6 +47,8 @@ class _TracksPanel extends StatelessWidget {
     if (result.imported > 0) parts.add('${result.imported} importada(s)');
     if (result.skipped > 0) parts.add('${result.skipped} ignorada(s)');
     messenger.showSnackBar(SnackBar(content: Text(parts.join(' · '))));
+    // Move o mapa para as trilhas recém-importadas (aparecem ao fechar o painel).
+    if (result.tracks.isNotEmpty) onImported(result.tracks);
   }
 
   @override
