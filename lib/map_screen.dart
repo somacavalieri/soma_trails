@@ -9,6 +9,8 @@ import 'package:latlong2/latlong.dart';
 import 'location_marker.dart';
 import 'location_service.dart';
 import 'models/track.dart';
+import 'point_manager.dart';
+import 'points_panel.dart';
 import 'recording_hud.dart';
 import 'theme.dart';
 import 'tile_source.dart';
@@ -35,6 +37,7 @@ class _MapScreenState extends State<MapScreen> {
   final _mapController = MapController();
   final _location = LocationService();
   final _tracks = TrackManager();
+  final _points = PointManager();
   late final TrackRecorder _recorder = TrackRecorder(_location);
   StreamSubscription<Position>? _positionSub;
 
@@ -49,6 +52,8 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     _tracks.addListener(_onChange);
     _recorder.addListener(_onChange);
+    _points.addListener(_onChange);
+    _points.load();
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -65,6 +70,7 @@ class _MapScreenState extends State<MapScreen> {
   void dispose() {
     _tracks.removeListener(_onChange);
     _recorder.removeListener(_onChange);
+    _points.removeListener(_onChange);
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
@@ -225,6 +231,55 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  // ---- Pontos ------------------------------------------------------------
+
+  Future<void> _onLongPress(LatLng at) async {
+    final data = await showAddPointDialog(context, at);
+    if (data == null || !mounted) return;
+    await _points.add(point: at, name: data.name, category: data.category);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Ponto marcado.')),
+    );
+  }
+
+  void _openPoints() {
+    showPointsPanel(
+      context,
+      _points,
+      onShow: (p) {
+        setState(() => _follow = false);
+        final zoom = _mapController.camera.zoom;
+        _mapController.move(p.point, zoom < 15 ? 16 : zoom);
+      },
+    );
+  }
+
+  List<Marker> _pointMarkers() {
+    return [
+      for (final p in _points.points)
+        Marker(
+          point: p.point,
+          width: 34,
+          height: 34,
+          child: GestureDetector(
+            onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('${p.displayName} · ${p.category.label}')),
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: p.category.color,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+                boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 3)],
+              ),
+              child: Icon(p.category.icon, size: 18, color: Colors.black87),
+            ),
+          ),
+        ),
+    ];
+  }
+
   void _comingSoon(String feature) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('$feature — em breve')),
@@ -312,6 +367,7 @@ class _MapScreenState extends State<MapScreen> {
               minZoom: _cameraMinZoom,
               maxZoom: _cameraMaxZoom,
               onMapEvent: _onMapEvent,
+              onLongPress: (_, latlng) => _onLongPress(latlng),
               interactionOptions: const InteractionOptions(
                 flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
               ),
@@ -330,6 +386,7 @@ class _MapScreenState extends State<MapScreen> {
               ),
               PolylineLayer(polylines: _trackPolylines()),
               MarkerLayer(markers: _waypointMarkers()),
+              MarkerLayer(markers: _pointMarkers()),
               PolylineLayer(polylines: _recordingPolylines()),
               if (startPoint != null)
                 MarkerLayer(
@@ -421,6 +478,19 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
 
+          // Pill de pontos (hint "segure no mapa" + abre o painel Pontos)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 172 + bottomInset,
+            child: Center(
+              child: _PointsPill(
+                count: _points.count,
+                onTap: _openPoints,
+              ),
+            ),
+          ),
+
           // Barra inferior
           Align(
             alignment: Alignment.bottomCenter,
@@ -434,6 +504,45 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Pill central: dica "segure no mapa" (0 pontos) ou contador (abre Pontos).
+class _PointsPill extends StatelessWidget {
+  const _PointsPill({required this.count, required this.onTap});
+
+  final int count;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count == 0
+        ? 'Segure no mapa para marcar um ponto'
+        : '$count ponto${count == 1 ? '' : 's'} marcado${count == 1 ? '' : 's'}';
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.panel.withValues(alpha: 0.92),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: const Color(0x33FF2DAA)),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.location_on, color: AppColors.accentAlt, size: 18),
+              const SizedBox(width: 8),
+              Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
+            ],
+          ),
+        ),
       ),
     );
   }
