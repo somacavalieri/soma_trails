@@ -686,7 +686,10 @@ class _GpsDebugPanel extends StatelessWidget {
     final rec = recorder.isActive
         ? ' · rec ${recorder.recordedPointCount}pts drop ${recorder.droppedByAccuracy}'
         : '';
-    final err = location.lastError != null ? ' · ERRO' : '';
+    final rawErr = location.lastError?.toString() ?? '';
+    final err = rawErr.isEmpty
+        ? ''
+        : ' · ERRO ${rawErr.length > 48 ? rawErr.substring(0, 48) : rawErr}';
 
     return Material(
       color: Colors.black.withValues(alpha: 0.72),

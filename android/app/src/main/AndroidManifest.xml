@@ -7,6 +7,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Exigida pelo enableWakeLock do geolocator (o plugin NÃO a declara);
+         sem ela, wakeLock.acquire() lança SecurityException na montagem do
+         stream de gravação e o GPS congela ao iniciar a gravação. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="soma_trails"
         android:name="${applicationName}"
