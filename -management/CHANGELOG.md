@@ -6,6 +6,12 @@ os passos 1–10 do plano do PRD.
 
 ## [Não lançado]
 
+### Melhorias
+- `2a32420` — **SOM-328:** download por trilha baixa ~1 km de margem em volta da
+  rota (era bug de unidade: raio do LineRegion é em metros, passava-se 0.6 como
+  se fosse km → corredor de 0,6 m). Limites salvos expandidos para o "Offline
+  pronto" bater com a faixa baixada.
+
 ### Backlog (próximo)
 - Pastas de trilhas + seleção múltipla no painel Trilhas (sobra do passo 4).
 - "Abrir com / compartilhar para" GPX vindo de outros apps.
