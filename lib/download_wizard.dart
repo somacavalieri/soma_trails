@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
@@ -13,6 +15,15 @@ import 'track_manager.dart';
 
 const _distance = Distance();
 const int _minZoom = 12;
+
+/// Margem baixada em volta da trilha, para você não ficar sem mapa ao desviar
+/// da rota. O FMTC aplica ~0,785× (π/4) sobre o raio do LineRegion, então
+/// ~1300 m dão ~1 km de folga de cada lado (faixa de ~2 km de largura).
+const double _trackMarginMeters = 1300;
+
+/// Folga em metros usada para os limites salvos da região (para o chip
+/// "Offline pronto" acender quando você desvia para dentro da faixa baixada).
+const double _trackBoundsMarginMeters = 1000;
 
 enum _Step { select, detail, progress, done }
 
@@ -74,16 +85,33 @@ class _DownloadWizardState extends State<DownloadWizard> {
 
   BaseRegion _region() {
     if (_mode == _Mode.track && _trackPoints.length >= 2) {
-      return LineRegion(_trackPoints, 0.6); // corredor de 0.6 km ao redor
+      // Corredor de ~1 km de cada lado do traçado (raio em METROS).
+      return LineRegion(_trackPoints, _trackMarginMeters);
     }
     return RectangleRegion(_areaBounds);
   }
 
+  /// Limites da região para metadados/"Offline pronto". Na trilha, o bbox do
+  /// traçado é expandido pela margem para bater com a faixa realmente baixada.
   LatLngBounds _regionBounds() {
     if (_mode == _Mode.track && _trackPoints.isNotEmpty) {
-      return LatLngBounds.fromPoints(_trackPoints);
+      return _expandBounds(
+        LatLngBounds.fromPoints(_trackPoints),
+        _trackBoundsMarginMeters,
+      );
     }
     return _areaBounds;
+  }
+
+  LatLngBounds _expandBounds(LatLngBounds b, double meters) {
+    final latDelta = meters / 111320.0;
+    final cLat = (b.south + b.north) / 2;
+    final lonDelta =
+        meters / (111320.0 * math.cos(cLat * math.pi / 180.0)).abs();
+    return LatLngBounds(
+      LatLng(b.south - latDelta, b.west - lonDelta),
+      LatLng(b.north + latDelta, b.east + lonDelta),
+    );
   }
 
   String _regionName() {
