@@ -42,26 +42,33 @@ class LocationService {
 
   Stream<Position> get positions => _controller.stream;
 
-  static const LocationSettings _normal = LocationSettings(
-    accuracy: LocationAccuracy.best,
-    distanceFilter: 5,
-  );
-
+  /// No Android NÃO usamos distanceFilter: ele vira `smallestDisplacement` no
+  /// fused provider, que em Samsungs suprime updates até congelar o stream
+  /// (entrega poucos fixes e silencia mesmo em movimento — visto no S24 Ultra:
+  /// "fixes 4 · último 916s"). Em vez disso, updates por TEMPO (~2 s) e o
+  /// filtro de distância fica na camada do app (TrackRecorder, ~5 m).
   LocationSettings _settings() {
-    if (_foreground && Platform.isAndroid) {
+    if (Platform.isAndroid) {
       return AndroidSettings(
         accuracy: LocationAccuracy.best,
-        distanceFilter: 5,
-        foregroundNotificationConfig: const ForegroundNotificationConfig(
-          notificationTitle: 'soma_trails — gravando trajeto',
-          notificationText: 'Registrando seu caminho, mesmo com a tela apagada.',
-          notificationChannelName: 'Gravação de trajeto',
-          enableWakeLock: true,
-          setOngoing: true,
-        ),
+        distanceFilter: 0,
+        intervalDuration: const Duration(seconds: 2),
+        foregroundNotificationConfig: _foreground
+            ? const ForegroundNotificationConfig(
+                notificationTitle: 'soma_trails — gravando trajeto',
+                notificationText:
+                    'Registrando seu caminho, mesmo com a tela apagada.',
+                notificationChannelName: 'Gravação de trajeto',
+                enableWakeLock: true,
+                setOngoing: true,
+              )
+            : null,
       );
     }
-    return _normal;
+    return const LocationSettings(
+      accuracy: LocationAccuracy.best,
+      distanceFilter: 0,
+    );
   }
 
   Future<LocationReadyResult> ensureReady() async {

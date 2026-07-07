@@ -64,6 +64,11 @@ class TrackRecorder extends ChangeNotifier {
   Directory? _dir;
   static const _accuracyCeilingMeters = 30.0;
 
+  /// Espaçamento mínimo entre pontos gravados. O stream agora é por tempo
+  /// (~2 s, sem distanceFilter — bug do fused provider em Samsungs), então a
+  /// amostragem por distância é feita aqui.
+  static const _minStepMeters = 5.0;
+
   // ---- Estado derivado (para o HUD e o mapa) ----------------------------
 
   Duration get elapsed {
@@ -266,7 +271,9 @@ class TrackRecorder extends ChangeNotifier {
     final p = LatLng(pos.latitude, pos.longitude);
     final seg = _segments.last;
     if (seg.isNotEmpty) {
-      _distanceMeters += _distance.as(LengthUnit.Meter, seg.last, p);
+      final step = _distance.as(LengthUnit.Meter, seg.last, p);
+      if (step < _minStepMeters) return; // parado/quase parado: não acumula
+      _distanceMeters += step;
     }
     seg.add(p);
     notifyListeners();
