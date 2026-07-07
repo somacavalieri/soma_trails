@@ -34,11 +34,16 @@ class LocationService {
   // Diagnóstico (painel de depuração)
   int _fixCount = 0;
   DateTime? _lastFixAt;
+  DateTime? _lastBindAt;
   Object? _lastError;
+  int _rebindCount = 0;
   int get fixCount => _fixCount;
   DateTime? get lastFixAt => _lastFixAt;
   bool get isForeground => _foreground;
   Object? get lastError => _lastError;
+  int get rebindCount => _rebindCount;
+
+  Timer? _watchdog;
 
   Stream<Position> get positions => _controller.stream;
 
@@ -93,10 +98,34 @@ class LocationService {
   /// (evitar religar à toa é o que impede a corrida que congelava o GPS).
   /// Chamar após [ensureReady].
   Future<void> start({bool foreground = false}) async {
+    _startWatchdog();
     if (_bound) return;
     _bound = true;
     _foreground = foreground;
     await _bind();
+  }
+
+  /// Auto-cura: se o stream ficar mudo por muito tempo (morte silenciosa do
+  /// serviço nativo — pior defeito possível na trilha), religa sozinho.
+  void _startWatchdog() {
+    _watchdog ??= Timer.periodic(const Duration(seconds: 10), (_) {
+      if (!_bound) return;
+      // Referência = o evento mais recente (fix OU religação), para não
+      // religar em loop quando o GPS legitimamente está sem sinal.
+      final fix = _lastFixAt;
+      final bind = _lastBindAt;
+      final ref = switch ((fix, bind)) {
+        (null, null) => null,
+        (final f?, null) => f,
+        (null, final b?) => b,
+        (final f?, final b?) => f.isAfter(b) ? f : b,
+      };
+      if (ref == null) return;
+      if (DateTime.now().difference(ref) > const Duration(seconds: 30)) {
+        _rebindCount++;
+        _bind();
+      }
+    });
   }
 
   /// Alterna entre modo normal e foreground service (gravação). Só religa se o
@@ -115,7 +144,15 @@ class LocationService {
       _bound = true;
       final old = _source;
       _source = null;
-      await old?.cancel();
+      if (old != null) {
+        await old.cancel();
+        // O cancel do lado Dart retorna antes de o serviço nativo do plugin
+        // terminar de desmontar; religar em cima disso deixa o novo stream
+        // mudo (visto no S24 Ultra ao iniciar a gravação). A pausa dá tempo
+        // do desmonte concluir; se ainda assim ficar mudo, o watchdog religa.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+      }
+      _lastBindAt = DateTime.now();
       _source = Geolocator.getPositionStream(locationSettings: _settings())
           .listen(
         (p) {
@@ -137,6 +174,7 @@ class LocationService {
   Future<void> openAppSettings() => Geolocator.openAppSettings();
 
   Future<void> dispose() async {
+    _watchdog?.cancel();
     await _source?.cancel();
     await _controller.close();
   }

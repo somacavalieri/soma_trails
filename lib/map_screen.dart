@@ -682,6 +682,7 @@ class _GpsDebugPanel extends StatelessWidget {
         ? '—'
         : '${DateTime.now().difference(location.lastFixAt!).inSeconds}s';
     final mode = location.isForeground ? 'foreground' : 'normal';
+    final reb = location.rebindCount > 0 ? ' · reb ${location.rebindCount}' : '';
     final rec = recorder.isActive
         ? ' · rec ${recorder.recordedPointCount}pts drop ${recorder.droppedByAccuracy}'
         : '';
@@ -715,7 +716,7 @@ class _GpsDebugPanel extends StatelessWidget {
                     fontFamily: 'monospace',
                   ),
                 ),
-                Text('modo $mode$rec$err (toque p/ esconder)',
+                Text('modo $mode$reb$rec$err (toque p/ esconder)',
                     style: const TextStyle(
                         color: Color(0xFFB0B0B0),
                         fontSize: 11,
