@@ -18,20 +18,24 @@ class SettingsController extends ChangeNotifier {
   static const _kKeepOn = 'keep_screen_on';
   static const _kContrast = 'high_contrast';
   static const _kMiles = 'use_miles';
+  static const _kGpsDebug = 'gps_debug';
 
   bool _keepScreenOn = true; // decisão travada: tela sempre acesa
   bool _highContrast = false;
   bool _useMiles = false;
+  bool _gpsDebug = false;
 
   bool get keepScreenOn => _keepScreenOn;
   bool get highContrast => _highContrast;
   bool get useMiles => _useMiles;
+  bool get gpsDebug => _gpsDebug;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
     _keepScreenOn = prefs.getBool(_kKeepOn) ?? true;
     _highContrast = prefs.getBool(_kContrast) ?? false;
     _useMiles = prefs.getBool(_kMiles) ?? false;
+    _gpsDebug = prefs.getBool(_kGpsDebug) ?? false;
     useMilesUnit = _useMiles;
     await _applyKeepScreenOn();
     notifyListeners();
@@ -54,6 +58,12 @@ class SettingsController extends ChangeNotifier {
     _useMiles = value;
     useMilesUnit = value;
     await _persistBool(_kMiles, value);
+    notifyListeners();
+  }
+
+  Future<void> setGpsDebug(bool value) async {
+    _gpsDebug = value;
+    await _persistBool(_kGpsDebug, value);
     notifyListeners();
   }
 

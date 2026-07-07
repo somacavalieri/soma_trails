@@ -56,6 +56,14 @@ Components (see PRD for detail):
 - **TrackRecorder** — consumes the `LocationService` stream (no duplicate GPS), builds the "my track" polyline, controls record/pause/resume/stop, and **auto-saves GPX directly to disk every ~30 s** so the track survives the app being closed/killed; auto-resumes on reopen with the gap as a new segment (no false straight line). Exports saved tracks to `Downloads/` via MediaStore.
 - **Persistence** — source config in `shared_preferences`; imported tracks and recorded tracks as plain files (GPX + a JSON metadata file). No Isar (effectively unmaintained). Tiles live in FMTC's store (**ObjectBox** backend — accepted lock-in, since tiles are re-downloadable; what must survive are the GPX files and config, which are plain files).
 
+## Hard-won GPS/Android notes (do not regress)
+
+Debugged on the S24 Ultra; each of these froze the GPS stream in the field:
+- **Never set `distanceFilter > 0` on Android.** It becomes fused-provider `smallestDisplacement`, which on Samsung suppresses updates until the stream freezes (a few fixes, then silence even while moving). Use `intervalDuration` (~2 s) for time-based updates and filter distance in the app layer (TrackRecorder keeps points ≥5 m apart).
+- **`WAKE_LOCK` must stay in AndroidManifest.** geolocator's `enableWakeLock: true` acquires a wakelock but the plugin does not declare the permission; without it, `wakeLock.acquire()` throws SecurityException during stream setup and the recording stream is born dead (normal mode works, tapping record freezes).
+- **Stream rebinds must stay serialized with the 400 ms post-cancel pause** (`LocationService._bind`): Dart-side cancel returns before the plugin's native service finishes tearing down, and an immediate re-listen produces a mute stream. The 30 s **watchdog** rebinds automatically if the stream goes silent — keep both.
+- The GPS diagnostic panel (fixes count, last-fix age, mode, rebinds, last error) is toggled in Ajustes → "Diagnóstico do GPS". Use it for any future location debugging before touching code.
+
 ## Scope discipline
 
 The breadcrumb recorder is deliberately **light**: its purpose is orientation, not activity data. **Rich activity recording (detailed stats, segments, charts), turn-by-turn navigation/routing, search/geocoding, social sharing, iOS/multiplatform, cloud sync, map rotation (course-up), and "open with" GPX intents are out of scope for v1** — the owner already uses Strava/Wikiloc for rich recording. Don't add them without an explicit decision to change scope.

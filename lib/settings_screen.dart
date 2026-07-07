@@ -88,6 +88,13 @@ class SettingsScreen extends StatelessWidget {
                 useMiles: settings.useMiles,
                 onChanged: settings.setUseMiles,
               ),
+              _ToggleRow(
+                icon: Icons.monitor_heart_outlined,
+                title: 'Diagnóstico do GPS',
+                subtitle: 'Faixa com status do GPS no topo do mapa (p/ testes)',
+                value: settings.gpsDebug,
+                onChanged: settings.setGpsDebug,
+              ),
               const SizedBox(height: 32),
               const Center(
                 child: Text('soma_trails · v1.0 · offline-first',

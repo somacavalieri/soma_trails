@@ -52,8 +52,10 @@ class _MapScreenState extends State<MapScreen> {
   Position? _position;
   bool _follow = false;
   double _zoom = 13;
-  bool _showDebug = true; // painel de diagnóstico do GPS (temporário)
   Timer? _debugTimer;
+
+  /// Painel de diagnóstico do GPS — ligado/desligado nos Ajustes.
+  bool get _showDebug => _settings.gpsDebug;
 
   static const _serraDoCipo = LatLng(-19.3690, -43.5896);
 
@@ -564,7 +566,7 @@ class _MapScreenState extends State<MapScreen> {
                 location: _location,
                 recorder: _recorder,
                 position: _position,
-                onHide: () => setState(() => _showDebug = false),
+                onHide: () => _settings.setGpsDebug(false),
               ),
             ),
 
