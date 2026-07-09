@@ -13,8 +13,9 @@ import 'track_recorder.dart';
 Future<void> showTrajetoPanel(
   BuildContext context,
   TrackRecorder recorder, {
+  required Set<String> shownIds,
   required VoidCallback onStartRecording,
-  required void Function(RecordedTrack) onShowTrack,
+  required void Function(RecordedTrack) onToggleTrack,
 }) {
   return showModalBottomSheet(
     context: context,
@@ -26,8 +27,9 @@ Future<void> showTrajetoPanel(
     ),
     builder: (_) => _TrajetoPanel(
       recorder: recorder,
+      shownIds: shownIds,
       onStartRecording: onStartRecording,
-      onShowTrack: onShowTrack,
+      onToggleTrack: onToggleTrack,
     ),
   );
 }
@@ -35,13 +37,15 @@ Future<void> showTrajetoPanel(
 class _TrajetoPanel extends StatelessWidget {
   const _TrajetoPanel({
     required this.recorder,
+    required this.shownIds,
     required this.onStartRecording,
-    required this.onShowTrack,
+    required this.onToggleTrack,
   });
 
   final TrackRecorder recorder;
+  final Set<String> shownIds;
   final VoidCallback onStartRecording;
-  final void Function(RecordedTrack) onShowTrack;
+  final void Function(RecordedTrack) onToggleTrack;
 
   @override
   Widget build(BuildContext context) {
@@ -105,9 +109,10 @@ class _TrajetoPanel extends StatelessWidget {
                     _SavedRow(
                       track: t,
                       recorder: recorder,
-                      onShow: () {
+                      shown: shownIds.contains(t.id),
+                      onToggle: () {
                         Navigator.pop(context);
-                        onShowTrack(t);
+                        onToggleTrack(t);
                       },
                     ),
               ],
@@ -182,12 +187,14 @@ class _SavedRow extends StatelessWidget {
   const _SavedRow({
     required this.track,
     required this.recorder,
-    required this.onShow,
+    required this.shown,
+    required this.onToggle,
   });
 
   final RecordedTrack track;
   final TrackRecorder recorder;
-  final VoidCallback onShow;
+  final bool shown;
+  final VoidCallback onToggle;
 
   @override
   Widget build(BuildContext context) {
@@ -236,12 +243,16 @@ class _SavedRow extends StatelessWidget {
               Expanded(
                 child: OutlinedButton.icon(
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                    foregroundColor: shown ? AppColors.accent : Colors.white,
+                    side: BorderSide(
+                        color: shown
+                            ? AppColors.accent
+                            : Colors.white.withValues(alpha: 0.12)),
                   ),
-                  onPressed: onShow,
-                  icon: const Icon(Icons.location_on, size: 18),
-                  label: const Text('Mostrar'),
+                  onPressed: onToggle,
+                  icon: Icon(shown ? Icons.visibility_off : Icons.location_on,
+                      size: 18),
+                  label: Text(shown ? 'Ocultar' : 'Mostrar'),
                 ),
               ),
               const SizedBox(width: 8),

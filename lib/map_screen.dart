@@ -54,6 +54,9 @@ class _MapScreenState extends State<MapScreen> {
   double _zoom = 13;
   Timer? _debugTimer;
 
+  /// Trajetos salvos que o usuário mandou mostrar no mapa (por id).
+  final Set<String> _shownRecordings = {};
+
   /// Painel de diagnóstico do GPS — ligado/desligado nos Ajustes.
   bool get _showDebug => _settings.gpsDebug;
 
@@ -275,12 +278,44 @@ class _MapScreenState extends State<MapScreen> {
     showTrajetoPanel(
       context,
       _recorder,
+      shownIds: _shownRecordings,
       onStartRecording: _startRecording,
-      onShowTrack: (track) {
-        setState(() => _follow = false);
-        _fitToPoints([for (final seg in track.segments) ...seg]);
+      onToggleTrack: (track) {
+        final willShow = !_shownRecordings.contains(track.id);
+        setState(() {
+          _follow = false;
+          if (willShow) {
+            _shownRecordings.add(track.id);
+          } else {
+            _shownRecordings.remove(track.id);
+          }
+        });
+        if (willShow) {
+          _fitToPoints([for (final seg in track.segments) ...seg]);
+        }
       },
     );
+  }
+
+  List<Polyline> _savedRecordingPolylines() {
+    if (_shownRecordings.isEmpty) return const [];
+    final width = _settings.highContrast ? 6.0 : 4.5;
+    final lines = <Polyline>[];
+    for (final t in _recorder.saved) {
+      if (!_shownRecordings.contains(t.id)) continue;
+      for (final seg in t.segments) {
+        if (seg.length >= 2) {
+          lines.add(Polyline(
+            points: seg,
+            color: AppColors.accent,
+            strokeWidth: width,
+            borderColor: Colors.black.withValues(alpha: 0.5),
+            borderStrokeWidth: 1.5,
+          ));
+        }
+      }
+    }
+    return lines;
   }
 
   // ---- Pontos ------------------------------------------------------------
@@ -500,6 +535,7 @@ class _MapScreenState extends State<MapScreen> {
               PolylineLayer(polylines: _trackPolylines()),
               MarkerLayer(markers: _waypointMarkers()),
               MarkerLayer(markers: _pointMarkers()),
+              PolylineLayer(polylines: _savedRecordingPolylines()),
               PolylineLayer(polylines: _recordingPolylines()),
               if (startPoint != null)
                 MarkerLayer(
