@@ -6,6 +6,11 @@ os passos 1–10 do plano do PRD.
 
 ## [Não lançado]
 
+### Correções
+- `7d8c8d9` — **SOM-337:** trajeto salvo não aparecia no mapa ao tocar em
+  "Mostrar" (só movia a câmera, sem camada de desenho). Agora desenha a linha
+  laranja; botão alterna Mostrar/Ocultar.
+
 ### Melhorias
 - `305cfcc` — **SOM-334:** cache de download com dedup (modelo MyTrails). Store
   compartilhado por fonte (`dl_<sourceId>`) com `skipExistingTiles` → rebaixar
