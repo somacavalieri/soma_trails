@@ -41,12 +41,31 @@ class OfflineDownloadController extends ChangeNotifier {
   DownloadRegion? _lastFinished;
   DownloadRegion? get lastFinished => _lastFinished;
 
-  double get totalStorageKiB =>
-      _regions.fold(0.0, (sum, r) => sum + r.sizeKiB);
+  /// Uso real em disco (KiB), somando o tamanho de cada store distinto usado
+  /// pelas regiões. Com dedup, rebaixar não infla este número.
+  Future<double> totalStorageKiB() async {
+    var total = 0.0;
+    for (final s in _distinctStores()) {
+      try {
+        total += await FMTCStore(s).stats.size;
+      } catch (_) {}
+    }
+    return total;
+  }
 
-  /// Stores das regiões baixadas para uma fonte (para o mapa renderizar offline).
-  Iterable<String> regionStoresFor(String sourceId) =>
-      _regions.where((r) => r.sourceId == sourceId).map((r) => r.storeName);
+  /// Stores das regiões baixadas para uma fonte (para o mapa renderizar
+  /// offline). É um Set: regiões `shared` da mesma fonte colapsam num só store.
+  Iterable<String> regionStoresFor(String sourceId) {
+    final stores = <String>{};
+    for (final r in _regions) {
+      if (r.sourceId == sourceId) stores.add(r.storeName);
+    }
+    return stores;
+  }
+
+  Set<String> _distinctStores() => {for (final r in _regions) r.storeName};
+
+  String _downloadStore(String sourceId) => 'dl_$sourceId';
 
   Future<File> _storage() async {
     if (_file != null) return _file!;
@@ -63,6 +82,12 @@ class OfflineDownloadController extends ChangeNotifier {
         ..clear()
         ..addAll(raw.cast<Map<String, dynamic>>().map(DownloadRegion.fromJson));
     } catch (_) {}
+    // Garante que os stores existam para o mapa lê-los offline (idempotente).
+    for (final s in _distinctStores()) {
+      try {
+        await FMTCStore(s).manage.create();
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
@@ -105,7 +130,8 @@ class OfflineDownloadController extends ChangeNotifier {
   }) async {
     if (_downloading) return;
     final id = '${DateTime.now().microsecondsSinceEpoch}';
-    final storeName = 'rgn_$id';
+    // Store compartilhado por fonte: dedup entre downloads (modelo MyTrails).
+    final storeName = _downloadStore(source.id);
     _activeStoreName = storeName;
     await FMTCStore(storeName).manage.create();
 
@@ -125,12 +151,14 @@ class OfflineDownloadController extends ChangeNotifier {
     final completer = Completer<void>();
     final result = FMTCStore(storeName).download.startForeground(
           region: downloadable,
+          skipExistingTiles: true, // dedup: não rebaixa tile que já está no store
           skipSeaTiles: false,
         );
 
     _sub = result.downloadProgress.listen(
       (p) {
-        _doneTiles = p.successfulTilesCount;
+        // Barra avança com tentados (novos + pulados); tamanho = só o adicionado.
+        _doneTiles = p.attemptedTilesCount;
         _doneKiB = p.successfulTilesSize;
         _totalTiles = p.maxTilesCount;
         notifyListeners();
@@ -138,7 +166,6 @@ class OfflineDownloadController extends ChangeNotifier {
       onDone: () async {
         await _finish(
           id: id,
-          storeName: storeName,
           bounds: bounds,
           minZoom: minZoom,
           maxZoom: maxZoom,
@@ -158,13 +185,14 @@ class OfflineDownloadController extends ChangeNotifier {
 
   Future<void> _finish({
     required String id,
-    required String storeName,
     required LatLngBounds bounds,
     required int minZoom,
     required int maxZoom,
     required TileSource source,
     required String name,
   }) async {
+    // `tiles` = cobertura total da região; `sizeKiB` = quanto ESTE download
+    // adicionou (com dedup, rebaixar mostra ~0 MB, mas a região cobre a área).
     final region = DownloadRegion(
       id: id,
       name: name,
@@ -175,19 +203,17 @@ class OfflineDownloadController extends ChangeNotifier {
       east: bounds.east,
       minZoom: minZoom,
       maxZoom: maxZoom,
-      tiles: _doneTiles,
+      tiles: _totalTiles,
       sizeKiB: _doneKiB,
       createdAt: DateTime.now(),
     );
 
-    if (_doneTiles > 0) {
+    if (_totalTiles > 0) {
       _regions.insert(0, region);
       await _save();
       _lastFinished = region;
-    } else {
-      // Nada baixado: descarta o store vazio.
-      await _deleteStore(storeName);
     }
+    // Store compartilhado nunca é apagado aqui (pode ter tiles de outras regiões).
 
     _downloading = false;
     _activeStoreName = null;
@@ -196,16 +222,15 @@ class OfflineDownloadController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Cancela o download em curso e descarta o store parcial.
+  /// Cancela o download em curso. Os tiles já baixados permanecem no cache
+  /// compartilhado (válidos e reaproveitáveis) — não apaga o store.
   Future<void> cancel() async {
     if (!_downloading || _activeStoreName == null) return;
-    final storeName = _activeStoreName!;
     try {
-      await FMTCStore(storeName).download.cancel();
+      await FMTCStore(_activeStoreName!).download.cancel();
     } catch (_) {}
     await _sub?.cancel();
     _sub = null;
-    await _deleteStore(storeName);
     _downloading = false;
     _activeStoreName = null;
     notifyListeners();
@@ -215,7 +240,30 @@ class OfflineDownloadController extends ChangeNotifier {
     final r = _byId(id);
     if (r == null) return;
     _regions.remove(r);
-    await _deleteStore(r.storeName);
+    if (r.shared) {
+      // Metadado apenas (tiles são compartilhados). Se não sobra nenhuma
+      // região dessa fonte, o store fica órfão → esvazia para liberar espaço.
+      final anyLeft =
+          _regions.any((x) => x.shared && x.sourceId == r.sourceId);
+      if (!anyLeft) await _resetStore(r.storeName);
+    } else {
+      // Legado: store próprio, excluir libera exatamente o espaço dela.
+      await _deleteStore(r.storeName);
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  /// Apaga todos os downloads (tiles + metadados) para liberar espaço.
+  Future<void> clearAllDownloads() async {
+    for (final s in _distinctStores()) {
+      if (s.startsWith('dl_')) {
+        await _resetStore(s);
+      } else {
+        await _deleteStore(s);
+      }
+    }
+    _regions.clear();
     await _save();
     notifyListeners();
   }
@@ -230,6 +278,13 @@ class OfflineDownloadController extends ChangeNotifier {
   Future<void> _deleteStore(String storeName) async {
     try {
       await FMTCStore(storeName).manage.delete();
+    } catch (_) {}
+  }
+
+  /// Esvazia um store (mantém o store, remove os tiles).
+  Future<void> _resetStore(String storeName) async {
+    try {
+      await FMTCStore(storeName).manage.reset();
     } catch (_) {}
   }
 

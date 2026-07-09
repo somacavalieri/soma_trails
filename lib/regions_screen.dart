@@ -40,9 +40,14 @@ class RegionsScreen extends StatelessWidget {
                           const Text('Armazenamento usado',
                               style: TextStyle(color: AppColors.textDim)),
                           const SizedBox(height: 4),
-                          Text(formatSizeKiB(controller.totalStorageKiB),
+                          FutureBuilder<double>(
+                            future: controller.totalStorageKiB(),
+                            builder: (context, snap) => Text(
+                              snap.hasData ? formatSizeKiB(snap.data!) : '…',
                               style: const TextStyle(
-                                  fontSize: 26, fontWeight: FontWeight.bold)),
+                                  fontSize: 26, fontWeight: FontWeight.bold),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -59,12 +64,23 @@ class RegionsScreen extends StatelessWidget {
                         style: TextStyle(color: AppColors.textDim)),
                   ),
                 )
-              else
+              else ...[
                 for (final r in regions)
                   _RegionCard(
                     region: r,
                     onRemove: () => _confirmRemove(context, r),
                   ),
+                const SizedBox(height: 8),
+                Center(
+                  child: TextButton.icon(
+                    onPressed: () => _clearAll(context),
+                    icon: const Icon(Icons.delete_sweep_outlined,
+                        color: Color(0xFFFF6B6B)),
+                    label: const Text('Limpar todos os downloads',
+                        style: TextStyle(color: Color(0xFFFF6B6B))),
+                  ),
+                ),
+              ],
             ],
           );
         },
@@ -72,13 +88,36 @@ class RegionsScreen extends StatelessWidget {
     );
   }
 
+  Future<void> _clearAll(BuildContext context) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Limpar todos os downloads?'),
+        content: const Text(
+            'Todas as regiões e seus tiles serão apagados, liberando o espaço. As trilhas e trajetos não são afetados.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Limpar tudo'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) await controller.clearAllDownloads();
+  }
+
   Future<void> _confirmRemove(BuildContext context, DownloadRegion r) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Excluir região?'),
-        content: Text(
-            '"${r.name}" e ${formatSizeKiB(r.sizeKiB)} de cache serão removidos.'),
+        content: Text(r.shared
+            ? '"${r.name}" sai da lista. Como os tiles são compartilhados, o espaço só é liberado ao remover a última região da fonte (ou em "Limpar todos os downloads").'
+            : '"${r.name}" e ${formatSizeKiB(r.sizeKiB)} de cache serão removidos.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),

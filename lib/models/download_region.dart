@@ -1,11 +1,13 @@
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
-/// Uma região de satélite baixada para uso offline.
+/// Uma região de satélite baixada para uso offline. Associada a uma fonte
+/// ([sourceId]) — só é renderizada quando essa fonte está ativa.
 ///
-/// Cada região tem seu próprio store no FMTC (`storeName`), então excluí-la
-/// libera exatamente o espaço dela. Fica associada a uma fonte ([sourceId]) —
-/// só é renderizada quando essa fonte está ativa.
+/// [shared] = modelo atual (MyTrails): todas as regiões de uma fonte gravam num
+/// mesmo store (`dl_<sourceId>`), com dedup — rebaixar área sobreposta não
+/// duplica tiles. Regiões antigas (`shared == false`) têm store próprio
+/// (`rgn_<id>`) e continuam funcionando (compatibilidade).
 class DownloadRegion {
   DownloadRegion({
     required this.id,
@@ -20,6 +22,7 @@ class DownloadRegion {
     required this.tiles,
     required this.sizeKiB,
     required this.createdAt,
+    this.shared = true,
   });
 
   final String id;
@@ -34,8 +37,10 @@ class DownloadRegion {
   final int tiles;
   final double sizeKiB;
   final DateTime createdAt;
+  final bool shared;
 
-  String get storeName => 'rgn_$id';
+  /// Store compartilhado por fonte (novo) ou próprio (legado).
+  String get storeName => shared ? 'dl_$sourceId' : 'rgn_$id';
 
   LatLngBounds get bounds =>
       LatLngBounds(LatLng(south, west), LatLng(north, east));
@@ -59,6 +64,7 @@ class DownloadRegion {
         'tiles': tiles,
         'sizeKiB': sizeKiB,
         'createdAt': createdAt.toIso8601String(),
+        'shared': shared,
       };
 
   factory DownloadRegion.fromJson(Map<String, dynamic> j) => DownloadRegion(
@@ -75,6 +81,8 @@ class DownloadRegion {
         sizeKiB: (j['sizeKiB'] as num).toDouble(),
         createdAt: DateTime.tryParse(j['createdAt'] as String? ?? '') ??
             DateTime.fromMillisecondsSinceEpoch(0),
+        // JSON antigo não tem 'shared' → era store próprio (legado).
+        shared: j['shared'] as bool? ?? false,
       );
 }
 
