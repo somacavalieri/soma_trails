@@ -7,6 +7,10 @@ os passos 1–10 do plano do PRD.
 ## [Não lançado]
 
 ### Melhorias
+- `305cfcc` — **SOM-334:** cache de download com dedup (modelo MyTrails). Store
+  compartilhado por fonte (`dl_<sourceId>`) com `skipExistingTiles` → rebaixar
+  área sobreposta não duplica tiles. Total = tamanho real em disco; "Limpar
+  todos os downloads"; regiões antigas (`rgn_*`) continuam funcionando.
 - `2a32420` — **SOM-328:** download por trilha baixa ~1 km de margem em volta da
   rota (era bug de unidade: raio do LineRegion é em metros, passava-se 0.6 como
   se fosse km → corredor de 0,6 m). Limites salvos expandidos para o "Offline
