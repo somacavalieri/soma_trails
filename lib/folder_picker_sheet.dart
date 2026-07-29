@@ -1,7 +1,39 @@
 import 'package:flutter/material.dart';
 
+import 'models/track_folder.dart';
 import 'theme.dart';
 import 'track_manager.dart';
+
+/// Diálogo "Nova pasta" (nome + Cancelar/Criar) compartilhado entre o painel
+/// de Trilhas e este sheet — evita duplicar o mesmo AlertDialog nos dois
+/// lugares. Retorna a pasta criada, ou null se cancelado/nome vazio.
+Future<TrackFolder?> promptCreateFolder(
+    BuildContext context, TrackManager manager) async {
+  final controller = TextEditingController();
+  final name = await showDialog<String>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Nova pasta'),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: 'Nome da pasta'),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, controller.text),
+          child: const Text('Criar'),
+        ),
+      ],
+    ),
+  );
+  if (name == null) return null;
+  return manager.createFolder(name);
+}
 
 /// Sheet de escolha de pastas (checkboxes) usado em dois fluxos:
 /// - "Pastas desta trilha" (menu da trilha): pré-marca as pastas atuais e o
@@ -58,30 +90,7 @@ class _FolderPickerSheetState extends State<_FolderPickerSheet> {
   late final Set<String> _selected = {...widget.initiallySelected};
 
   Future<void> _createFolder() async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nova pasta'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Nome da pasta'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Criar'),
-          ),
-        ],
-      ),
-    );
-    if (name == null) return;
-    final folder = await widget.manager.createFolder(name);
+    final folder = await promptCreateFolder(context, widget.manager);
     if (folder != null) setState(() => _selected.add(folder.id));
   }
 

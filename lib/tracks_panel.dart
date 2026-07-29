@@ -62,29 +62,7 @@ class _TracksPanelState extends State<_TracksPanel> {
   }
 
   Future<void> _createFolder(BuildContext context) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nova pasta'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Nome da pasta'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Criar'),
-          ),
-        ],
-      ),
-    );
-    if (name != null) await widget.manager.createFolder(name);
+    await promptCreateFolder(context, widget.manager);
   }
 
   Future<void> _renameFolder(BuildContext context, TrackFolder folder) async {
