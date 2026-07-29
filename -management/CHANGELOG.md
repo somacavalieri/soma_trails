@@ -12,6 +12,11 @@ os passos 1–10 do plano do PRD.
   laranja; botão alterna Mostrar/Ocultar.
 
 ### Melhorias
+- `da9977e` — **Pastas de trilhas + ações em massa** (sobra do passo 4): pastas
+  no painel Trilhas (1 nível, trilha pode estar em várias), olho agregado
+  mostra/oculta a pasta inteira, sheet "Pastas desta trilha", modo Selecionar
+  com "Adicionar à pasta…" e exclusão em massa. Migração automática do
+  `folderId` legado; pastas em `folders.json`.
 - `305cfcc` — **SOM-334:** cache de download com dedup (modelo MyTrails). Store
   compartilhado por fonte (`dl_<sourceId>`) com `skipExistingTiles` → rebaixar
   área sobreposta não duplica tiles. Total = tamanho real em disco; "Limpar
@@ -22,7 +27,6 @@ os passos 1–10 do plano do PRD.
   pronto" bater com a faixa baixada.
 
 ### Backlog (próximo)
-- Pastas de trilhas + seleção múltipla no painel Trilhas (sobra do passo 4).
 - "Abrir com / compartilhar para" GPX vindo de outros apps.
 - Validação de campo (issues SOM-329 a SOM-333 no Linear).
 
