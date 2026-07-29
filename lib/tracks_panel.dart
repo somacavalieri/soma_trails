@@ -49,6 +49,55 @@ class _TracksPanelState extends State<_TracksPanel> {
   /// Pastas expandidas (abre tudo colapsado; estado não persiste).
   final Set<String> _expanded = {};
 
+  bool _selecting = false;
+  final Set<String> _selected = {};
+
+  void _exitSelection() => setState(() {
+        _selecting = false;
+        _selected.clear();
+      });
+
+  Future<void> _addSelectedToFolder(BuildContext context) async {
+    final ids = _selected.toList();
+    await showFolderPickerSheet(
+      context,
+      widget.manager,
+      title: 'Adicionar à pasta',
+      subtitle: '${ids.length} trilha(s) selecionada(s)',
+      onConfirm: (folderIds) async {
+        for (final folderId in folderIds) {
+          await widget.manager.addToFolder(ids, folderId);
+        }
+      },
+    );
+    _exitSelection();
+  }
+
+  Future<void> _deleteSelected(BuildContext context) async {
+    final count = _selected.length;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Excluir $count trilha(s)?'),
+        content: const Text('Os arquivos serão removidos do app.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Excluir $count trilhas'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await widget.manager.removeMany(_selected.toList());
+      _exitSelection();
+    }
+  }
+
   Future<void> _import(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
     final result = await widget.manager.importFromPicker();
@@ -187,6 +236,13 @@ class _TracksPanelState extends State<_TracksPanel> {
                         track: t,
                         manager: manager,
                         onZoomToTrack: widget.onZoomToTrack,
+                        selecting: _selecting,
+                        selected: _selected.contains(t.id),
+                        onSelectToggle: () => setState(() {
+                          _selected.contains(t.id)
+                              ? _selected.remove(t.id)
+                              : _selected.add(t.id);
+                        }),
                       ),
                     )));
               }
@@ -195,6 +251,13 @@ class _TracksPanelState extends State<_TracksPanel> {
                   track: t,
                   manager: manager,
                   onZoomToTrack: widget.onZoomToTrack,
+                  selecting: _selecting,
+                  selected: _selected.contains(t.id),
+                  onSelectToggle: () => setState(() {
+                    _selected.contains(t.id)
+                        ? _selected.remove(t.id)
+                        : _selected.add(t.id);
+                  }),
                 )));
 
             return Column(
@@ -211,7 +274,9 @@ class _TracksPanelState extends State<_TracksPanel> {
                                 style: TextStyle(
                                     fontSize: 24, fontWeight: FontWeight.bold)),
                             Text(
-                              '${manager.visibleCount} de ${tracks.length} visíveis',
+                              _selecting
+                                  ? '${_selected.length} selecionadas'
+                                  : '${manager.visibleCount} de ${tracks.length} visíveis',
                               style: const TextStyle(color: AppColors.textDim),
                             ),
                           ],
@@ -237,6 +302,17 @@ class _TracksPanelState extends State<_TracksPanel> {
                         child: _SecondaryButton(
                           label: 'Nova pasta',
                           onTap: () => _createFolder(context),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _SecondaryButton(
+                          label: _selecting ? 'Cancelar' : 'Selecionar',
+                          onTap: tracks.isEmpty
+                              ? null
+                              : () => _selecting
+                                  ? _exitSelection()
+                                  : setState(() => _selecting = true),
                         ),
                       ),
                     ],
@@ -279,6 +355,44 @@ class _TracksPanelState extends State<_TracksPanel> {
                           itemBuilder: (context, i) => rows[i],
                         ),
                 ),
+                if (_selecting)
+                  SafeArea(
+                    top: false,
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: FilledButton.icon(
+                              style: FilledButton.styleFrom(
+                                backgroundColor: AppColors.accent,
+                                foregroundColor: Colors.white,
+                              ),
+                              onPressed: _selected.isEmpty
+                                  ? null
+                                  : () => _addSelectedToFolder(context),
+                              icon: const Icon(Icons.folder_outlined),
+                              label: const Text('Adicionar à pasta…'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.redAccent,
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed: _selected.isEmpty
+                                  ? null
+                                  : () => _deleteSelected(context),
+                              icon: const Icon(Icons.delete_outline),
+                              label: const Text('Excluir'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             );
           },
@@ -293,65 +407,83 @@ class _TrackRow extends StatelessWidget {
     required this.track,
     required this.manager,
     required this.onZoomToTrack,
+    this.selecting = false,
+    this.selected = false,
+    this.onSelectToggle,
   });
 
   final Track track;
   final TrackManager manager;
   final void Function(Track) onZoomToTrack;
+  final bool selecting;
+  final bool selected;
+  final VoidCallback? onSelectToggle;
 
   @override
   Widget build(BuildContext context) {
     final dim = !track.visible;
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Row(
-        children: [
-          _ColorSwatch(
-            color: track.color,
-            onTap: () => _editColor(context),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  track.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: dim ? AppColors.textDim : Colors.white,
+    return InkWell(
+      onTap: selecting ? onSelectToggle : null,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            if (selecting)
+              Checkbox(
+                value: selected,
+                onChanged: (_) => onSelectToggle!(),
+                activeColor: AppColors.accent,
+              ),
+            _ColorSwatch(
+              color: track.color,
+              onTap: () => _editColor(context),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: dim ? AppColors.textDim : Colors.white,
+                    ),
                   ),
-                ),
-                Text(
-                  '${track.distanceKm.toStringAsFixed(1)} km · ${track.fileName}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: AppColors.textDim, fontSize: 13),
-                ),
-              ],
+                  Text(
+                    '${track.distanceKm.toStringAsFixed(1)} km · ${track.fileName}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: AppColors.textDim, fontSize: 13),
+                  ),
+                ],
+              ),
             ),
-          ),
-          IconButton(
-            onPressed: () => manager.toggleVisible(track.id),
-            icon: Icon(
-              track.visible ? Icons.visibility : Icons.visibility_off,
-              color: track.visible ? AppColors.accent : AppColors.textDim,
-            ),
-          ),
-          _TrackMenu(
-            track: track,
-            manager: manager,
-            onZoomToTrack: onZoomToTrack,
-          ),
-        ],
+            if (!selecting) ...[
+              IconButton(
+                onPressed: () => manager.toggleVisible(track.id),
+                icon: Icon(
+                  track.visible ? Icons.visibility : Icons.visibility_off,
+                  color: track.visible ? AppColors.accent : AppColors.textDim,
+                ),
+              ),
+              _TrackMenu(
+                track: track,
+                manager: manager,
+                onZoomToTrack: onZoomToTrack,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

@@ -147,4 +147,112 @@ void main() {
 
     expect(manager.tracks.single.folderIds, ['f1']);
   });
+
+  testWidgets('modo Selecionar: excluir em massa', (tester) async {
+    await tester.runAsync(() async {
+      await seedTrack(dir, 't1');
+      await seedTrack(dir, 't2');
+      await seedTrack(dir, 't3');
+      await manager.load();
+    });
+    await pumpPanel(tester, manager);
+
+    await tester.tap(find.text('Selecionar'));
+    await tester.pumpAndSettle();
+
+    // Em modo Selecionar a barra de ações no rodapé reduz o espaço da lista;
+    // com 3 trilhas a última pode ficar fora da viewport inicial do
+    // ListView virtualizado — dragUntilVisible rola até revelá-la antes do
+    // tap (no-op se já estiver visível).
+    await tester.dragUntilVisible(
+      find.text('Trilha t1'),
+      find.byType(Scrollable),
+      const Offset(0, -50),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trilha t1'));
+    await tester.dragUntilVisible(
+      find.text('Trilha t3'),
+      find.byType(Scrollable),
+      const Offset(0, -50),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trilha t3'));
+    await tester.pumpAndSettle();
+    expect(find.text('2 selecionadas'), findsOneWidget);
+
+    // O diálogo de confirmação é aberto por _deleteSelected, uma função
+    // async que já fica pendente no await do showDialog. Diferente do botão
+    // "Concluir" do folder picker (que só chama a operação de I/O real ao
+    // ser tocado), aqui a continuação de _deleteSelected (removeMany) resume
+    // na MESMA zona em que a função começou a rodar — por isso o tap em
+    // "Excluir" (que a inicia) entra no mesmo bloco runAsync do tap de
+    // confirmação; senão a continuação roda na zona fake-async do teste e o
+    // I/O real nunca completa.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Excluir'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Excluir 2 trilhas'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+    });
+
+    expect(manager.tracks.map((t) => t.id), ['t2']);
+    expect(find.text('2 selecionadas'), findsNothing); // saiu do modo
+  });
+
+  testWidgets('modo Selecionar: adicionar à pasta', (tester) async {
+    await tester.runAsync(() async {
+      await File('${dir.path}/folders.json')
+          .writeAsString(jsonEncode([{'id': 'f1', 'name': 'Serra do Cipó'}]));
+      await seedTrack(dir, 't1');
+      await seedTrack(dir, 't2');
+      await manager.load();
+    });
+    await pumpPanel(tester, manager);
+
+    await tester.tap(find.text('Selecionar'));
+    await tester.pumpAndSettle();
+    await tester.dragUntilVisible(
+      find.text('Trilha t1'),
+      find.byType(Scrollable),
+      const Offset(0, -50),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trilha t1'));
+    await tester.dragUntilVisible(
+      find.text('Trilha t2'),
+      find.byType(Scrollable),
+      const Offset(0, -50),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Trilha t2'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Adicionar à pasta…'));
+    await tester.pumpAndSettle();
+    // Não usar find.byType(Checkbox).first: em modo Selecionar as próprias
+    // linhas de trilha (por trás, no painel de Trilhas) também têm Checkbox,
+    // então ".first" pode pegar o checkbox errado (o de uma trilha, não o da
+    // pasta). O checkbox da pasta fica dentro do CheckboxListTile do sheet.
+    await tester.tap(find.descendant(
+      of: find.byType(CheckboxListTile),
+      matching: find.byType(Checkbox),
+    ));
+    await tester.pumpAndSettle();
+
+    // "Concluir" chama addToFolder (I/O real). Pelo mesmo motivo do teste de
+    // exclusão em massa: o tap que abre o sheet ("Adicionar à pasta…") já
+    // inicia a função async _addSelectedToFolder fora do runAsync, mas quem
+    // efetivamente chama addToFolder é o onPressed do botão "Concluir" do
+    // sheet — uma função nova, iniciada no momento deste tap. Por isso basta
+    // este tap (e não o de abertura do sheet) estar dentro do runAsync.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Concluir'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+    });
+
+    expect(manager.tracksInFolder('f1').map((t) => t.id), ['t1', 't2']);
+  });
 }
