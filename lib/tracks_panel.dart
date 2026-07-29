@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'folder_picker_sheet.dart';
 import 'models/track.dart';
 import 'models/track_folder.dart';
 import 'theme.dart';
@@ -502,6 +503,15 @@ class _TrackMenu extends StatelessWidget {
             onZoomToTrack(track);
           case 'rename':
             await _rename(context);
+          case 'folders':
+            await showFolderPickerSheet(
+              context,
+              manager,
+              title: 'Pastas desta trilha',
+              subtitle: '${track.name} · pode estar em várias',
+              initiallySelected: track.folderIds.toSet(),
+              onConfirm: (ids) => manager.setTrackFolders(track.id, ids),
+            );
           case 'remove':
             await _confirmRemove(context);
         }
@@ -509,6 +519,7 @@ class _TrackMenu extends StatelessWidget {
       itemBuilder: (context) => const [
         PopupMenuItem(value: 'show', child: Text('Mostrar no mapa')),
         PopupMenuItem(value: 'rename', child: Text('Renomear')),
+        PopupMenuItem(value: 'folders', child: Text('Pastas…')),
         PopupMenuItem(value: 'remove', child: Text('Excluir')),
       ],
     );

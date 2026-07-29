@@ -117,4 +117,34 @@ void main() {
     expect(manager.folders.single.name, 'Circuito das Águas');
     expect(find.text('Circuito das Águas'), findsOneWidget);
   });
+
+  testWidgets('menu "Pastas…" marca a trilha em uma pasta', (tester) async {
+    await tester.runAsync(() async {
+      await File('${dir.path}/folders.json')
+          .writeAsString(jsonEncode([{'id': 'f1', 'name': 'Serra do Cipó'}]));
+      await seedTrack(dir, 't1');
+      await manager.load();
+    });
+
+    await pumpPanel(tester, manager);
+
+    await tester.tap(find.byIcon(Icons.more_vert).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pastas…'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Pastas desta trilha'), findsOneWidget);
+    await tester.tap(find.byType(Checkbox).first);
+    await tester.pumpAndSettle();
+
+    // O tap final chama setTrackFolders (I/O real); precisa do mesmo runAsync
+    // usado no teste "Nova pasta cria pasta pelo diálogo" acima.
+    await tester.runAsync(() async {
+      await tester.tap(find.text('Concluir'));
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await tester.pumpAndSettle();
+    });
+
+    expect(manager.tracks.single.folderIds, ['f1']);
+  });
 }
