@@ -77,4 +77,69 @@ void main() {
       expect(json.containsKey('folderId'), isFalse);
     });
   });
+
+  group('pastas: CRUD e persistência', () {
+    test('createFolder cria, persiste e recarrega', () async {
+      final f = await manager.createFolder('Serra do Cipó');
+      expect(f!.name, 'Serra do Cipó');
+      final reloaded = TrackManager(dirOverride: dir);
+      await reloaded.load();
+      expect(reloaded.folders.single.name, 'Serra do Cipó');
+      expect(reloaded.folders.single.id, f.id);
+    });
+
+    test('createFolder com nome vazio não cria', () async {
+      expect(await manager.createFolder('   '), isNull);
+      expect(manager.folders, isEmpty);
+    });
+
+    test('renameFolder muda o nome; vazio é ignorado', () async {
+      final f = await manager.createFolder('A');
+      await manager.renameFolder(f!.id, 'B');
+      expect(manager.folders.single.name, 'B');
+      await manager.renameFolder(f.id, '  ');
+      expect(manager.folders.single.name, 'B');
+    });
+
+    test('deleteFolder(deleteTracks: false) mantém as trilhas', () async {
+      await seedTrack(dir, 't1', meta: {'folderIds': ['f1']});
+      await File('${dir.path}/folders.json')
+          .writeAsString(jsonEncode([{'id': 'f1', 'name': 'Serra'}]));
+      await manager.load();
+      await manager.deleteFolder('f1', deleteTracks: false);
+      expect(manager.folders, isEmpty);
+      expect(manager.tracks.single.folderIds, isEmpty);
+      expect(File('${dir.path}/t1.gpx').existsSync(), isTrue);
+    });
+
+    test('deleteFolder(deleteTracks: true) exclui GPX, mesmo em 2 pastas',
+        () async {
+      await seedTrack(dir, 't1', meta: {'folderIds': ['f1', 'f2']});
+      await seedTrack(dir, 't2', meta: {'folderIds': ['f2']});
+      await File('${dir.path}/folders.json').writeAsString(jsonEncode([
+        {'id': 'f1', 'name': 'A'},
+        {'id': 'f2', 'name': 'B'},
+      ]));
+      await manager.load();
+      await manager.deleteFolder('f1', deleteTracks: true);
+      // t1 estava em f1 (e também em f2): excluída por completo.
+      expect(manager.tracks.map((t) => t.id), ['t2']);
+      expect(File('${dir.path}/t1.gpx').existsSync(), isFalse);
+      expect(manager.folders.map((f) => f.id), ['f2']);
+    });
+
+    test('folders.json corrompido -> sem pastas, trilhas carregam', () async {
+      await seedTrack(dir, 't1');
+      await File('${dir.path}/folders.json').writeAsString('{nope');
+      await manager.load();
+      expect(manager.folders, isEmpty);
+      expect(manager.tracks, hasLength(1));
+    });
+
+    test('folderIds órfãos são limpos no load', () async {
+      await seedTrack(dir, 't1', meta: {'folderIds': ['fantasma']});
+      await manager.load();
+      expect(manager.tracks.single.folderIds, isEmpty);
+    });
+  });
 }

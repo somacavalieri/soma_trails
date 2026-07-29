@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 
 import 'gpx_parser.dart';
 import 'models/track.dart';
+import 'models/track_folder.dart';
 
 /// Resultado de uma importação, para dar feedback ao usuário.
 class ImportResult {
@@ -34,6 +35,11 @@ class TrackManager extends ChangeNotifier {
   final List<Track> _tracks = [];
   List<Track> get tracks => List.unmodifiable(_tracks);
 
+  final List<TrackFolder> _folders = [];
+
+  /// Pastas na ordem de exibição (ordem de criação; sem reordenar no v1).
+  List<TrackFolder> get folders => List.unmodifiable(_folders);
+
   final Directory? _dirOverride;
   Directory? _tracksDir;
   int _counter = 0;
@@ -50,25 +56,45 @@ class TrackManager extends ChangeNotifier {
 
   File _metadataFile(Directory dir) => File('${dir.path}/tracks.json');
 
+  File _foldersFile(Directory dir) => File('${dir.path}/folders.json');
+
   /// Carrega as trilhas salvas e re-parseia a geometria de cada GPX.
   Future<void> load() async {
     final dir = await _dir();
+    await _loadFolders(dir);
     final meta = _metadataFile(dir);
-    if (!await meta.exists()) return;
-
-    final raw = jsonDecode(await meta.readAsString()) as List<dynamic>;
-    _tracks.clear();
-    for (final entry in raw.cast<Map<String, dynamic>>()) {
-      final stored = File(entry['storedPath'] as String);
-      if (!await stored.exists()) continue; // arquivo sumiu: pula
-      try {
-        final parsed = parseGpx(await stored.readAsString());
-        _tracks.add(_trackFromMeta(entry, parsed));
-      } catch (_) {
-        // GPX corrompido: ignora em vez de derrubar o app.
+    if (await meta.exists()) {
+      final raw = jsonDecode(await meta.readAsString()) as List<dynamic>;
+      _tracks.clear();
+      for (final entry in raw.cast<Map<String, dynamic>>()) {
+        final stored = File(entry['storedPath'] as String);
+        if (!await stored.exists()) continue; // arquivo sumiu: pula
+        try {
+          final parsed = parseGpx(await stored.readAsString());
+          _tracks.add(_trackFromMeta(entry, parsed));
+        } catch (_) {
+          // GPX corrompido: ignora em vez de derrubar o app.
+        }
       }
     }
+    final valid = _folders.map((f) => f.id).toSet();
+    for (final t in _tracks) {
+      t.folderIds.removeWhere((id) => !valid.contains(id));
+    }
     notifyListeners();
+  }
+
+  Future<void> _loadFolders(Directory dir) async {
+    final file = _foldersFile(dir);
+    if (!await file.exists()) return;
+    try {
+      final raw = jsonDecode(await file.readAsString()) as List<dynamic>;
+      _folders
+        ..clear()
+        ..addAll(raw.cast<Map<String, dynamic>>().map(TrackFolder.fromJson));
+    } catch (_) {
+      _folders.clear(); // corrompido: segue sem pastas
+    }
   }
 
   Track _trackFromMeta(Map<String, dynamic> e, ParsedGpx parsed) => Track(
@@ -192,17 +218,77 @@ class TrackManager extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> remove(String id) async {
-    final t = _byId(id);
-    if (t == null) return;
-    _tracks.remove(t);
-    try {
-      final f = File(t.storedPath);
-      if (await f.exists()) await f.delete();
-    } catch (_) {}
+  Future<void> _saveFolders() async {
+    final dir = await _dir();
+    await _foldersFile(dir)
+        .writeAsString(jsonEncode(_folders.map((f) => f.toJson()).toList()));
+  }
+
+  Future<TrackFolder?> createFolder(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return null;
+    final folder = TrackFolder(id: _newId(), name: trimmed);
+    _folders.add(folder);
+    await _saveFolders();
+    notifyListeners();
+    return folder;
+  }
+
+  Future<void> renameFolder(String id, String name) async {
+    final trimmed = name.trim();
+    final folder = _folderById(id);
+    if (folder == null || trimmed.isEmpty) return;
+    folder.name = trimmed;
+    await _saveFolders();
+    notifyListeners();
+  }
+
+  /// Exclui a pasta. Com [deleteTracks], exclui também (GPX + metadados) toda
+  /// trilha que pertença a ela — mesmo que a trilha esteja em outras pastas.
+  Future<void> deleteFolder(String id, {required bool deleteTracks}) async {
+    final folder = _folderById(id);
+    if (folder == null) return;
+    if (deleteTracks) {
+      final ids = _tracks
+          .where((t) => t.folderIds.contains(id))
+          .map((t) => t.id)
+          .toList();
+      await removeMany(ids);
+    } else {
+      for (final t in _tracks) {
+        t.folderIds.remove(id);
+      }
+      await _save();
+    }
+    _folders.remove(folder);
+    await _saveFolders();
+    notifyListeners();
+  }
+
+  /// Exclui várias trilhas de uma vez (GPX + metadados).
+  Future<void> removeMany(List<String> trackIds) async {
+    final toRemove = trackIds.toSet();
+    final victims = _tracks.where((t) => toRemove.contains(t.id)).toList();
+    if (victims.isEmpty) return;
+    for (final t in victims) {
+      _tracks.remove(t);
+      try {
+        final f = File(t.storedPath);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
     await _save();
     notifyListeners();
   }
+
+  TrackFolder? _folderById(String id) {
+    for (final f in _folders) {
+      if (f.id == id) return f;
+    }
+    return null;
+  }
+
+  Future<void> remove(String id) => removeMany([id]);
 
   Future<void> setAllVisible(bool visible) async {
     for (final t in _tracks) {
