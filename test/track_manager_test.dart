@@ -142,4 +142,62 @@ void main() {
       expect(manager.tracks.single.folderIds, isEmpty);
     });
   });
+
+  group('pertencimento e visibilidade por pasta', () {
+    setUp(() async {
+      await File('${dir.path}/folders.json').writeAsString(jsonEncode([
+        {'id': 'f1', 'name': 'A'},
+        {'id': 'f2', 'name': 'B'},
+      ]));
+      await seedTrack(dir, 't1', meta: {'folderIds': ['f1']});
+      await seedTrack(dir, 't2', meta: {'folderIds': ['f1'], 'visible': false});
+      await seedTrack(dir, 't3');
+      await manager.load();
+    });
+
+    test('tracksInFolder e looseTracks', () {
+      expect(manager.tracksInFolder('f1').map((t) => t.id), ['t1', 't2']);
+      expect(manager.looseTracks.map((t) => t.id), ['t3']);
+    });
+
+    test('folderVisibility: all / none / partial', () async {
+      expect(manager.folderVisibility('f1'), FolderVisibility.partial);
+      await manager.toggleVisible('t2');
+      expect(manager.folderVisibility('f1'), FolderVisibility.all);
+      await manager.setFolderVisible('f1', false);
+      expect(manager.folderVisibility('f1'), FolderVisibility.none);
+      expect(manager.folderVisibility('f2'), FolderVisibility.none); // vazia
+    });
+
+    test('setFolderVisible liga todas as trilhas da pasta', () async {
+      await manager.setFolderVisible('f1', true);
+      expect(manager.tracksInFolder('f1').every((t) => t.visible), isTrue);
+      // t3 (avulsa) não é afetada.
+      expect(manager.looseTracks.single.visible, isTrue);
+    });
+
+    test('setTrackFolders substitui o conjunto', () async {
+      await manager.setTrackFolders('t1', {'f2'});
+      expect(manager.tracksInFolder('f1').map((t) => t.id), ['t2']);
+      expect(manager.tracksInFolder('f2').map((t) => t.id), ['t1']);
+    });
+
+    test('addToFolder é idempotente e preserva outras pastas', () async {
+      await manager.addToFolder(['t1', 't3'], 'f2');
+      await manager.addToFolder(['t1'], 'f2'); // repetido: não duplica
+      final t1 = manager.tracks.firstWhere((t) => t.id == 't1');
+      expect(t1.folderIds, ['f1', 'f2']);
+      expect(manager.tracksInFolder('f2').map((t) => t.id), ['t1', 't3']);
+    });
+
+    test('removeMany apaga arquivos e metadados', () async {
+      await manager.removeMany(['t1', 't3']);
+      expect(manager.tracks.map((t) => t.id), ['t2']);
+      expect(File('${dir.path}/t1.gpx').existsSync(), isFalse);
+      expect(File('${dir.path}/t3.gpx').existsSync(), isFalse);
+      final reloaded = TrackManager(dirOverride: dir);
+      await reloaded.load();
+      expect(reloaded.tracks.map((t) => t.id), ['t2']);
+    });
+  });
 }

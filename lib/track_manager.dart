@@ -9,6 +9,10 @@ import 'gpx_parser.dart';
 import 'models/track.dart';
 import 'models/track_folder.dart';
 
+/// Estado agregado de visibilidade das trilhas de uma pasta (para o olho da
+/// pasta no painel). Pasta vazia conta como [none].
+enum FolderVisibility { all, none, partial }
+
 /// Resultado de uma importação, para dar feedback ao usuário.
 class ImportResult {
   const ImportResult({
@@ -309,5 +313,53 @@ class TrackManager extends ChangeNotifier {
     final dir = await _dir();
     final json = _tracks.map((t) => t.toJson()).toList();
     await _metadataFile(dir).writeAsString(jsonEncode(json));
+  }
+
+  /// Retorna todas as trilhas que pertencem a uma pasta.
+  List<Track> tracksInFolder(String folderId) =>
+      _tracks.where((t) => t.folderIds.contains(folderId)).toList();
+
+  /// Trilhas fora de qualquer pasta (listadas soltas na raiz do painel).
+  List<Track> get looseTracks =>
+      _tracks.where((t) => t.folderIds.isEmpty).toList();
+
+  /// Computa o estado agregado de visibilidade de uma pasta.
+  FolderVisibility folderVisibility(String folderId) {
+    final ts = tracksInFolder(folderId);
+    final visible = ts.where((t) => t.visible).length;
+    if (visible == 0) return FolderVisibility.none;
+    return visible == ts.length
+        ? FolderVisibility.all
+        : FolderVisibility.partial;
+  }
+
+  /// Ação em massa do olho da pasta: liga/desliga todas as trilhas dela.
+  Future<void> setFolderVisible(String folderId, bool visible) async {
+    for (final t in tracksInFolder(folderId)) {
+      t.visible = visible;
+    }
+    await _save();
+    notifyListeners();
+  }
+
+  /// Aplica o resultado do sheet "Pastas desta trilha" (substitui o conjunto).
+  Future<void> setTrackFolders(String trackId, Set<String> folderIds) async {
+    final t = _byId(trackId);
+    if (t == null) return;
+    t.folderIds = folderIds.toList();
+    await _save();
+    notifyListeners();
+  }
+
+  /// Ação em massa "Adicionar à pasta": adiciona sem tirar das outras pastas.
+  Future<void> addToFolder(List<String> trackIds, String folderId) async {
+    for (final id in trackIds) {
+      final t = _byId(id);
+      if (t != null && !t.folderIds.contains(folderId)) {
+        t.folderIds.add(folderId);
+      }
+    }
+    await _save();
+    notifyListeners();
   }
 }
