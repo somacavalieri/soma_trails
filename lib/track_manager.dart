@@ -27,9 +27,14 @@ class ImportResult {
 ///
 /// `ChangeNotifier` para o mapa e o painel se atualizarem juntos.
 class TrackManager extends ChangeNotifier {
+  /// [dirOverride] troca o diretório de dados (testes usam um temp dir e assim
+  /// não dependem do path_provider).
+  TrackManager({this._dirOverride});
+
   final List<Track> _tracks = [];
   List<Track> get tracks => List.unmodifiable(_tracks);
 
+  final Directory? _dirOverride;
   Directory? _tracksDir;
   int _counter = 0;
 
@@ -37,8 +42,8 @@ class TrackManager extends ChangeNotifier {
 
   Future<Directory> _dir() async {
     if (_tracksDir != null) return _tracksDir!;
-    final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}/tracks');
+    final dir = _dirOverride ??
+        Directory('${(await getApplicationDocumentsDirectory()).path}/tracks');
     if (!await dir.exists()) await dir.create(recursive: true);
     return _tracksDir = dir;
   }
@@ -73,7 +78,8 @@ class TrackManager extends ChangeNotifier {
         storedPath: e['storedPath'] as String,
         color: Color(e['color'] as int),
         visible: e['visible'] as bool? ?? true,
-        folderId: e['folderId'] as String?,
+        folderIds: (e['folderIds'] as List<dynamic>?)?.cast<String>().toList() ??
+            [if (e['folderId'] is String) e['folderId'] as String],
         segments: parsed.segments,
         waypoints: parsed.waypoints,
         distanceMeters: parsed.distanceMeters,

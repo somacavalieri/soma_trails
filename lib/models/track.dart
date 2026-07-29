@@ -20,7 +20,7 @@ const trackPalette = <Color>[
 
 /// Uma trilha importada de um arquivo GPX.
 ///
-/// Persistido: metadados (id, nome, arquivo, cor, visível, pasta). A geometria
+/// Persistido: metadados (id, nome, arquivo, cor, visível, pastas). A geometria
 /// ([segments]/[waypoints]/[distanceMeters]) é re-parseada do GPX na abertura,
 /// não vai para o JSON.
 class Track {
@@ -34,8 +34,8 @@ class Track {
     required this.segments,
     required this.waypoints,
     required this.distanceMeters,
-    this.folderId,
-  });
+    List<String>? folderIds,
+  }) : folderIds = folderIds ?? [];
 
   final String id;
   String name;
@@ -43,7 +43,10 @@ class Track {
   final String storedPath;
   Color color;
   bool visible;
-  String? folderId;
+
+  /// Ids das pastas às quais a trilha pertence (pode ser mais de uma; vazia =
+  /// trilha avulsa na raiz do painel).
+  List<String> folderIds;
 
   final List<List<LatLng>> segments;
   final List<GpxWaypoint> waypoints;
@@ -58,6 +61,6 @@ class Track {
         'storedPath': storedPath,
         'color': color.toARGB32(),
         'visible': visible,
-        'folderId': folderId,
+        'folderIds': folderIds,
       };
 }
