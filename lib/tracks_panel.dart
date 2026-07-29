@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'models/track.dart';
+import 'models/track_folder.dart';
 import 'theme.dart';
 import 'track_manager.dart';
 
@@ -28,7 +29,7 @@ Future<void> showTracksPanel(
   );
 }
 
-class _TracksPanel extends StatelessWidget {
+class _TracksPanel extends StatefulWidget {
   const _TracksPanel({
     required this.manager,
     required this.onZoomToTrack,
@@ -39,16 +40,128 @@ class _TracksPanel extends StatelessWidget {
   final void Function(Track) onZoomToTrack;
   final void Function(List<Track>) onImported;
 
+  @override
+  State<_TracksPanel> createState() => _TracksPanelState();
+}
+
+class _TracksPanelState extends State<_TracksPanel> {
+  /// Pastas expandidas (abre tudo colapsado; estado não persiste).
+  final Set<String> _expanded = {};
+
   Future<void> _import(BuildContext context) async {
     final messenger = ScaffoldMessenger.of(context);
-    final result = await manager.importFromPicker();
+    final result = await widget.manager.importFromPicker();
     if (result.imported == 0 && result.skipped == 0) return; // cancelou
     final parts = <String>[];
     if (result.imported > 0) parts.add('${result.imported} importada(s)');
     if (result.skipped > 0) parts.add('${result.skipped} ignorada(s)');
     messenger.showSnackBar(SnackBar(content: Text(parts.join(' · '))));
     // Move o mapa para as trilhas recém-importadas (aparecem ao fechar o painel).
-    if (result.tracks.isNotEmpty) onImported(result.tracks);
+    if (result.tracks.isNotEmpty) widget.onImported(result.tracks);
+  }
+
+  Future<void> _createFolder(BuildContext context) async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nova pasta'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Nome da pasta'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Criar'),
+          ),
+        ],
+      ),
+    );
+    if (name != null) await widget.manager.createFolder(name);
+  }
+
+  Future<void> _renameFolder(BuildContext context, TrackFolder folder) async {
+    final controller = TextEditingController(text: folder.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Renomear pasta'),
+        content: TextField(controller: controller, autofocus: true),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Salvar'),
+          ),
+        ],
+      ),
+    );
+    if (name != null) await widget.manager.renameFolder(folder.id, name);
+  }
+
+  Future<void> _deleteFolder(BuildContext context, TrackFolder folder) async {
+    final manager = widget.manager;
+    final inFolder = manager.tracksInFolder(folder.id);
+    if (inFolder.isEmpty) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Excluir pasta?'),
+          content: Text('"${folder.name}" está vazia.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Excluir'),
+            ),
+          ],
+        ),
+      );
+      if (ok == true) await manager.deleteFolder(folder.id, deleteTracks: false);
+      return;
+    }
+    final shared = inFolder.where((t) => t.folderIds.length > 1).length;
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Excluir pasta?'),
+        content: Text(
+          '"${folder.name}" tem ${inFolder.length} trilha(s).\n\n'
+          '"Pasta e trilhas" remove os arquivos GPX do app'
+          '${shared > 0 ? ' — $shared também estão em outras pastas e '
+              'sumirão de lá' : ''}.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'folder'),
+            child: const Text('Só a pasta'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, 'both'),
+            child: const Text('Pasta e trilhas'),
+          ),
+        ],
+      ),
+    );
+    if (choice != null) {
+      await manager.deleteFolder(folder.id, deleteTracks: choice == 'both');
+    }
   }
 
   @override
@@ -60,9 +173,51 @@ class _TracksPanel extends StatelessWidget {
       maxChildSize: 0.92,
       builder: (context, scrollController) {
         return ListenableBuilder(
-          listenable: manager,
+          listenable: widget.manager,
           builder: (context, child) {
+            final manager = widget.manager;
             final tracks = manager.tracks;
+
+            // Lista raiz achatada: pastas primeiro (com suas trilhas
+            // indentadas quando expandidas), depois as trilhas avulsas.
+            final rows = <Widget>[];
+            for (final folder in manager.folders) {
+              final inFolder = manager.tracksInFolder(folder.id);
+              rows.add(_FolderRow(
+                folder: folder,
+                trackCount: inFolder.length,
+                visibleCount: inFolder.where((t) => t.visible).length,
+                visibility: manager.folderVisibility(folder.id),
+                expanded: _expanded.contains(folder.id),
+                onTap: () => setState(() {
+                  _expanded.contains(folder.id)
+                      ? _expanded.remove(folder.id)
+                      : _expanded.add(folder.id);
+                }),
+                onToggleVisible: () => manager.setFolderVisible(
+                  folder.id,
+                  manager.folderVisibility(folder.id) != FolderVisibility.all,
+                ),
+                onRename: () => _renameFolder(context, folder),
+                onDelete: () => _deleteFolder(context, folder),
+              ));
+              if (_expanded.contains(folder.id)) {
+                rows.addAll(inFolder.map((t) => Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: _TrackRow(
+                        track: t,
+                        manager: manager,
+                        onZoomToTrack: widget.onZoomToTrack,
+                      ),
+                    )));
+              }
+            }
+            rows.addAll(manager.looseTracks.map((t) => _TrackRow(
+                  track: t,
+                  manager: manager,
+                  onZoomToTrack: widget.onZoomToTrack,
+                )));
+
             return Column(
               children: [
                 Padding(
@@ -101,6 +256,20 @@ class _TracksPanel extends StatelessWidget {
                     children: [
                       Expanded(
                         child: _SecondaryButton(
+                          label: 'Nova pasta',
+                          onTap: () => _createFolder(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _SecondaryButton(
                           label: 'Mostrar todas',
                           onTap: tracks.isEmpty
                               ? null
@@ -121,18 +290,14 @@ class _TracksPanel extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: tracks.isEmpty
+                  child: tracks.isEmpty && manager.folders.isEmpty
                       ? _EmptyState(onImport: () => _import(context))
                       : ListView.separated(
                           controller: scrollController,
                           padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
-                          itemCount: tracks.length,
+                          itemCount: rows.length,
                           separatorBuilder: (_, _) => const SizedBox(height: 4),
-                          itemBuilder: (context, i) => _TrackRow(
-                            track: tracks[i],
-                            manager: manager,
-                            onZoomToTrack: onZoomToTrack,
-                          ),
+                          itemBuilder: (context, i) => rows[i],
                         ),
                 ),
               ],
@@ -218,6 +383,101 @@ class _TrackRow extends StatelessWidget {
       builder: (context) => _ColorPickerDialog(current: track.color),
     );
     if (chosen != null) await manager.setColor(track.id, chosen);
+  }
+}
+
+class _FolderRow extends StatelessWidget {
+  const _FolderRow({
+    required this.folder,
+    required this.trackCount,
+    required this.visibleCount,
+    required this.visibility,
+    required this.expanded,
+    required this.onTap,
+    required this.onToggleVisible,
+    required this.onRename,
+    required this.onDelete,
+  });
+
+  final TrackFolder folder;
+  final int trackCount;
+  final int visibleCount;
+  final FolderVisibility visibility;
+  final bool expanded;
+  final VoidCallback onTap;
+  final VoidCallback onToggleVisible;
+  final VoidCallback onRename;
+  final VoidCallback onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    // Olho agregado: aceso (todas), apagado (nenhuma), meio aceso (parcial).
+    final (eyeIcon, eyeColor) = switch (visibility) {
+      FolderVisibility.all => (Icons.visibility, AppColors.accent),
+      FolderVisibility.none => (Icons.visibility_off, AppColors.textDim),
+      FolderVisibility.partial =>
+        (Icons.visibility, AppColors.accent.withValues(alpha: 0.45)),
+    };
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.03),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              expanded ? Icons.expand_more : Icons.chevron_right,
+              color: AppColors.textDim,
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.folder_outlined, color: AppColors.accent),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    folder.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  Text(
+                    '$trackCount trilhas · $visibleCount visíveis',
+                    style:
+                        const TextStyle(color: AppColors.textDim, fontSize: 13),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              onPressed: trackCount == 0 ? null : onToggleVisible,
+              icon: Icon(eyeIcon, color: eyeColor),
+            ),
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: AppColors.textDim),
+              onSelected: (value) {
+                switch (value) {
+                  case 'rename':
+                    onRename();
+                  case 'delete':
+                    onDelete();
+                }
+              },
+              itemBuilder: (context) => const [
+                PopupMenuItem(value: 'rename', child: Text('Renomear')),
+                PopupMenuItem(value: 'delete', child: Text('Excluir')),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -383,32 +643,37 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // SingleChildScrollView: com a linha "Nova pasta" a mais acima, o painel
+    // aberto sem trilhas/pastas fica mais apertado (folga zero em telas
+    // baixas); isso evita overflow em vez de estourar o layout.
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.route, size: 48, color: AppColors.textDim),
-          const SizedBox(height: 12),
-          const Text(
-            'Nenhuma trilha ainda',
-            style: TextStyle(fontSize: 16, color: AppColors.textDim),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Importe arquivos .gpx para vê-los no mapa.',
-            style: TextStyle(color: AppColors.textDim),
-          ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              foregroundColor: Colors.white,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.route, size: 48, color: AppColors.textDim),
+            const SizedBox(height: 12),
+            const Text(
+              'Nenhuma trilha ainda',
+              style: TextStyle(fontSize: 16, color: AppColors.textDim),
             ),
-            onPressed: onImport,
-            icon: const Icon(Icons.add),
-            label: const Text('Importar GPX'),
-          ),
-        ],
+            const SizedBox(height: 4),
+            const Text(
+              'Importe arquivos .gpx para vê-los no mapa.',
+              style: TextStyle(color: AppColors.textDim),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: onImport,
+              icon: const Icon(Icons.add),
+              label: const Text('Importar GPX'),
+            ),
+          ],
+        ),
       ),
     );
   }
