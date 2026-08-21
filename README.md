@@ -75,7 +75,7 @@ The interesting part of a personal tool is what you refuse to build.
 | **Tile sources are user-configurable** | The single biggest durability risk is a tile source disappearing. Making the URL an app setting turns a fatal break into a settings edit. |
 | **No Isar for persistence** | Effectively unmaintained. Config goes to `shared_preferences`; tracks and recordings stay **plain GPX + JSON files** on disk. Tiles live in FMTC's ObjectBox store — accepted vendor lock-in, because tiles are re-downloadable. What must survive is the data that isn't. |
 
-The full product doc — locked decisions, MVP scope, risk analysis, implementation plan — is in [`docs/prd.md`](docs/prd.md) (Portuguese). The interactive UI prototype that served as the source of truth for the interface is [`docs/prototype.html`](docs/prototype.html).
+The full product doc — locked decisions, MVP scope, risk analysis, implementation plan — is in [`docs/prd.md`](docs/prd.md) (Portuguese). The interactive UI prototype that served as the source of truth for the interface is **[live here](https://somacavalieri.github.io/soma_trails/prototype.html)** ([source](docs/prototype.html)).
 
 ## Engineering notes
 
