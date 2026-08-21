@@ -4,7 +4,7 @@
 
 **Goal:** Organizar o painel Trilhas em pastas (1 nível, trilha em várias pastas), com mostrar/ocultar em massa por pasta e modo Selecionar com "Adicionar à pasta…" e "Excluir".
 
-**Architecture:** Pertencimento na trilha (`Track.folderIds: List<String>`) + `folders.json` ao lado do `tracks.json`; tudo dentro do `TrackManager` (único `ChangeNotifier`, como hoje). UI segue o protótipo `Soma Trails.html`: pastas expansíveis no topo do painel, trilhas avulsas abaixo, sheet reutilizável de checkboxes de pastas.
+**Architecture:** Pertencimento na trilha (`Track.folderIds: List<String>`) + `folders.json` ao lado do `tracks.json`; tudo dentro do `TrackManager` (único `ChangeNotifier`, como hoje). UI segue o protótipo `docs/prototype.html`: pastas expansíveis no topo do painel, trilhas avulsas abaixo, sheet reutilizável de checkboxes de pastas.
 
 **Tech Stack:** Flutter 3.44.4 / Dart 3.12 — sem nenhum pacote novo. Spec aprovado: `docs/superpowers/specs/2026-07-29-pastas-trilhas-design.md`.
 
@@ -16,7 +16,7 @@
 - Pastas têm **1 nível** (sem aninhamento). Visibilidade é **propriedade da trilha**; olho da pasta é ação em massa.
 - Persistência nunca derruba o app: JSON corrompido/ausente → estado vazio (mesmo padrão do `load()` atual).
 - Ao final de cada task: `flutter analyze` sem issues e `flutter test` verde.
-- Comandos rodam na raiz do repo: `/Users/somacavalieri/Library/CloudStorage/GoogleDrive-somacavalieri@gmail.com/My Drive/_claude/soma_trails` (o caminho tem espaços — sempre entre aspas).
+- Comandos rodam na raiz do repo (o caminho local tem espaços — sempre entre aspas).
 
 ## File Structure
 
@@ -27,7 +27,7 @@
 - `lib/tracks_panel.dart` — **modificar**: vira stateful; pastas expansíveis, olho agregado, Nova pasta, modo Selecionar com barra de ações.
 - `test/track_manager_test.dart` — **criar**: testes de model/manager (migração, CRUD, agregados, exclusões).
 - `test/tracks_panel_test.dart` — **criar**: widget tests do painel (pasta expande, olho agregado, modo seleção).
-- `-management/CHANGELOG.md` — **modificar** ao final.
+- `CHANGELOG.md` — **modificar** ao final.
 
 ---
 
@@ -1560,7 +1560,7 @@ git commit -m "feat: modo Selecionar no painel — adicionar à pasta e excluir 
 ### Task 7: Verificação final, APK e changelog
 
 **Files:**
-- Modify: `-management/CHANGELOG.md`
+- Modify: `CHANGELOG.md`
 
 **Interfaces:**
 - Consumes: tudo acima.
@@ -1578,7 +1578,7 @@ Expected: `build/app/outputs/flutter-apk/app-release.apk` gerado sem erros (o Dr
 
 - [ ] **Step 3: Atualizar o changelog**
 
-Em `-management/CHANGELOG.md`, seção `## [Não lançado]` → `### Melhorias`, adicionar no topo (substituir `<hash>` pelo hash curto do commit da Task 6):
+Em `CHANGELOG.md`, seção `## [Não lançado]` → `### Melhorias`, adicionar no topo (substituir `<hash>` pelo hash curto do commit da Task 6):
 
 ```markdown
 - `<hash>` — **Pastas de trilhas + ações em massa** (sobra do passo 4): pastas
@@ -1597,7 +1597,7 @@ E remover a linha correspondente do `### Backlog (próximo)`:
 - [ ] **Step 4: Commit**
 
 ```bash
-git add -- "-management/CHANGELOG.md"
+git add -- "CHANGELOG.md"
 git commit -m "changelog: registra pastas de trilhas + ações em massa"
 ```
 

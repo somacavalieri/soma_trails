@@ -22,9 +22,9 @@ Plan steps 1–8 and 10 are implemented and analyze/test-clean; step 9 is the fi
 Code layout: `lib/` has one file per component — `map_screen.dart` (the single screen wiring it all), `*_manager.dart` / `*_controller.dart` (ChangeNotifier state: tracks, points, sources, download, recorder, settings), `*_panel.dart` / `*_screen.dart` (UI), `models/`, `gpx_parser.dart`, `format.dart`, `theme.dart`. State is plain `ChangeNotifier` + listeners in MapScreen (no state-management package). Native keep-screen-on lives in `MainActivity.kt` via a MethodChannel (`dev.soma.soma_trails/screen`).
 
 Planning material:
-- `PRD-app-trilhas-offline.md` — the full PRD, locked decisions, MVP scope, architecture, and incremental implementation plan. **Read this first for any implementation work** — it is the source of truth.
-- `Soma Trails.html` — interactive UI prototype (Claude Design export, JS-rendered; open in a browser). **The prototype is the source of truth for UI/UX** — the PRD's "Especificação de UI" section transcribes it screen by screen; where they diverge, the prototype wins. Only two deliberate deviations: no Bing tile source (discontinued, quadkey format) and an added download-progress state with cancel.
-- `soma_trails.pdf` — companion reference/mockup export for the PRD.
+- `docs/prd.md` — the full PRD, locked decisions, MVP scope, architecture, and incremental implementation plan. **Read this first for any implementation work** — it is the source of truth.
+- `docs/prototype.html` — interactive UI prototype (Claude Design export, JS-rendered; open in a browser). **The prototype is the source of truth for UI/UX** — the PRD's "Especificação de UI" section transcribes it screen by screen; where they diverge, the prototype wins. Only two deliberate deviations: no Bing tile source (discontinued, quadkey format) and an added download-progress state with cancel.
+- `docs/reference.pdf` — companion reference/mockup export for the PRD.
 
 ## Toolchain (pinned — durability)
 

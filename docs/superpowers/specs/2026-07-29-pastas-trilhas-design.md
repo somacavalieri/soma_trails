@@ -1,7 +1,7 @@
 # Pastas de trilhas + ações em massa — design
 
 **Data:** 2026-07-29
-**Contexto:** sobra do passo 4 do plano do PRD ("depois pastas + seleção múltipla"). O painel Trilhas hoje é uma lista plana; com 50+ GPX importados fica impossível de navegar. O protótipo `Soma Trails.html` é a fonte de verdade do UI e já mostra pastas expansíveis, "Nova pasta · Selecionar" e o sheet "Pastas desta trilha".
+**Contexto:** sobra do passo 4 do plano do PRD ("depois pastas + seleção múltipla"). O painel Trilhas hoje é uma lista plana; com 50+ GPX importados fica impossível de navegar. O protótipo `docs/prototype.html` é a fonte de verdade do UI e já mostra pastas expansíveis, "Nova pasta · Selecionar" e o sheet "Pastas desta trilha".
 
 ## Objetivo
 

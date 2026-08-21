@@ -19,3 +19,6 @@ local.properties
 *.jks
 *.keystore
 key.properties
+
+# Screenshots originais do aparelho (versões otimizadas ficam em docs/screenshots/)
+screenshoot/

@@ -31,7 +31,7 @@ Viável e de esforço moderado, porque as features-chave vêm de bibliotecas mad
 - **Stack:** Flutter + `flutter_map` + `flutter_map_tile_caching` (FMTC) + `geolocator` + `gpx` + `file_picker`.
 - **Distribuição:** APK sideload, só Android (S24 Ultra). Sem iOS, sem Play Store. Uso pessoal, sem comercialização — a licença GPL-v3 do FMTC não impõe nenhuma obrigação prática nesse cenário (sem distribuição).
 - **Fontes de satélite:** **configuráveis**, com **tela simples "Fontes do mapa" no v1** (lista de fontes, toggle de qual está ativa — uma por vez —, adicionar/editar por URL template). Defaults: **Esri World Imagery** (satélite) e **OSM Topo** (alternativa topográfica). Bing foi descartado (descontinuado para contas free/basic e usa quadkey, incompatível com URL template `{x}/{y}/{z}` simples).
-- **O protótipo `Soma Trails.html` é a FONTE DA VERDADE de UI/UX** (export interativo do Claude Design; abrir no browser). Onde este PRD e o protótipo divergirem, vale o protótipo. A seção "Especificação de UI" abaixo descreve todas as telas. Únicos desvios deliberados, por motivo técnico: (1) Bing Aerial não entra na lista de fontes (serviço descontinuado + formato quadkey); (2) o download em massa ganha um estado de progresso com cancelar (o protótipo pula direto para "Pronto!").
+- **O protótipo `docs/prototype.html` é a FONTE DA VERDADE de UI/UX** (export interativo do Claude Design; abrir no browser). Onde este PRD e o protótipo divergirem, vale o protótipo. A seção "Especificação de UI" abaixo descreve todas as telas. Únicos desvios deliberados, por motivo técnico: (1) Bing Aerial não entra na lista de fontes (serviço descontinuado + formato quadkey); (2) o download em massa ganha um estado de progresso com cancelar (o protótipo pula direto para "Pronto!").
 - **Orientação do mapa: norte fixo.** A seta de posição gira com o heading; o mapa não rotaciona. Course-up (mapa girando com o movimento) fica no backlog.
 - **Waypoints dos GPX: sim, simples.** Pin discreto na cor da trilha; nome aparece ao tocar. Nada além disso.
 - **Pontos do usuário no v1: SIM.** Segurar no mapa marca um ponto pessoal (nome + categoria curta, ex.: água, mirante, perigo/bifurcação); painel "Pontos" lista com coordenadas e excluir. Persistem como arquivo local e aparecem offline.
@@ -75,7 +75,7 @@ App Flutter single-screen-cêntrico. Camadas do mapa (de baixo pra cima): **tile
 - **Pré-trilha (com wi-fi):** importar GPX → selecionar área → baixar tiles.
 - **Na trilha (offline):** abrir app → mapa renderiza do cache FMTC → ponto de GPS → trilhas visíveis → (opcional) iniciar gravação, que vai sendo desenhada e auto-salva continuamente. Zero rede.
 
-## Especificação de UI (fonte: protótipo `Soma Trails.html`)
+## Especificação de UI (fonte: protótipo `docs/prototype.html`)
 
 Tema escuro com acento laranja; painéis em bottom sheet com alça de arrastar; telas secundárias em tela cheia com botão voltar (chevron) no cabeçalho.
 
