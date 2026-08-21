@@ -615,11 +615,21 @@ class _MapScreenState extends State<MapScreen> {
               child: const Center(child: _OfflineReadyChip()),
             ),
 
-          // Camadas (fontes do mapa)
+          // Camadas (fontes do mapa) + contador de pontos marcados
           Positioned(
             left: 12,
             top: controlsTop,
-            child: _MapIconButton(icon: Icons.layers, onTap: _openSources),
+            child: Column(
+              children: [
+                _MapIconButton(icon: Icons.layers, onTap: _openSources),
+                const SizedBox(height: 8),
+                _MapIconButton(
+                  icon: Icons.location_on,
+                  onTap: _openPoints,
+                  badge: _points.count > 0 ? '${_points.count}' : null,
+                ),
+              ],
+            ),
           ),
 
           // Zoom +/- com indicador do nível atual
@@ -665,19 +675,6 @@ class _MapScreenState extends State<MapScreen> {
               onPause: _recorder.pause,
               onResume: _resumeRecording,
               onStop: _stopRecording,
-            ),
-          ),
-
-          // Pill de pontos (hint "segure no mapa" + abre o painel Pontos)
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 172 + bottomInset,
-            child: Center(
-              child: _PointsPill(
-                count: _points.count,
-                onTap: _openPoints,
-              ),
             ),
           ),
 
@@ -837,67 +834,66 @@ class _ZoomBadge extends StatelessWidget {
   }
 }
 
-/// Botão redondo escuro sobre o mapa (camadas, etc.).
+/// Botão redondo escuro sobre o mapa (camadas, pontos, etc.), com badge
+/// opcional de contagem no canto superior direito.
 class _MapIconButton extends StatelessWidget {
-  const _MapIconButton({required this.icon, required this.onTap});
+  const _MapIconButton({
+    required this.icon,
+    required this.onTap,
+    this.badge,
+  });
 
   final IconData icon;
   final VoidCallback onTap;
+  final String? badge;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.panel.withValues(alpha: 0.92),
-      borderRadius: BorderRadius.circular(14),
-      elevation: 2,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: SizedBox(
-          width: 48,
-          height: 48,
-          child: Icon(icon, color: Colors.white, size: 24),
-        ),
-      ),
-    );
-  }
-}
-
-/// Pill central: dica "segure no mapa" (0 pontos) ou contador (abre Pontos).
-class _PointsPill extends StatelessWidget {
-  const _PointsPill({required this.count, required this.onTap});
-
-  final int count;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final label = count == 0
-        ? 'Segure no mapa para marcar um ponto'
-        : '$count ponto${count == 1 ? '' : 's'} marcado${count == 1 ? '' : 's'}';
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(24),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.panel.withValues(alpha: 0.92),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: const Color(0x33FF2DAA)),
-            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 8)],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.location_on, color: AppColors.accentAlt, size: 18),
-              const SizedBox(width: 8),
-              Text(label, style: const TextStyle(color: Colors.white, fontSize: 13)),
-            ],
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Material(
+          color: AppColors.panel.withValues(alpha: 0.92),
+          borderRadius: BorderRadius.circular(14),
+          elevation: 2,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(14),
+            child: SizedBox(
+              width: 48,
+              height: 48,
+              child: Icon(icon, color: Colors.white, size: 24),
+            ),
           ),
         ),
-      ),
+        if (badge != null)
+          Positioned(
+            right: -4,
+            top: -4,
+            child: IgnorePointer(
+              child: Container(
+                padding: const EdgeInsets.all(3),
+                constraints:
+                    const BoxConstraints(minWidth: 20, minHeight: 20),
+                decoration: BoxDecoration(
+                  color: AppColors.accentAlt,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: AppColors.panel, width: 2),
+                ),
+                child: Text(
+                  badge!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    height: 1.1,
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
