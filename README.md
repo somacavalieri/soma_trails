@@ -40,13 +40,19 @@ Tile sources are user-configurable by URL template — if one breaks on terms-of
 
 ### 2. Downloading satellite tiles by area, from the phone
 
-A three-step wizard: pick the region, pick the zoom span, see the estimate before committing. Region selection works two ways — **drag a rectangle**, or **pick an imported track** and let the area snap to its bounding box plus a margin. Downloaded regions are managed and deleted in-app, with total storage shown.
+A three-step wizard. Region selection works two ways — **drag a rectangle**, or **pick an imported track** and let the area snap to its bounding box plus a margin.
 
-| By area | By track | Downloaded regions |
+| By area | By track |
+|---|---|
+| <img src="docs/screenshots/04-download-area.jpg" width="250"> | <img src="docs/screenshots/05-download-track.jpg" width="250"> |
+
+Then you commit — but never blindly. The wizard shows **tile count, size on disk and estimated time before the download starts**, the transfer reports progress and can be cancelled mid-flight, and downloaded regions are managed and deleted in-app with total storage shown.
+
+| Zoom span & estimate | Progress, cancellable | Downloaded regions |
 |---|---|---|
-| <img src="docs/screenshots/04-download-area.jpg" width="230"> | <img src="docs/screenshots/05-download-track.jpg" width="230"> | <img src="docs/screenshots/06-regions.jpg" width="230"> |
+| <img src="docs/screenshots/08-download-zoom.jpg" width="230"> | <img src="docs/screenshots/09-download-progress.jpg" width="230"> | <img src="docs/screenshots/06-regions.jpg" width="230"> |
 
-The zoom slider spans z12–z18 and defaults to z12–z15. Each extra zoom level multiplies tile count by ~4, and Esri rarely resolves better than z17 over rural Brazil — so the default is deliberately conservative, with overzoom covering the rest.
+The zoom slider spans z12–z18 and defaults to z12–z15. Each extra zoom level multiplies tile count by ~4, and Esri rarely resolves better than z17 over rural Brazil — so the default is deliberately conservative, with overzoom covering the rest. That estimate screen exists because the difference between a sane download and a multi-gigabyte one is a single slider drag.
 
 ### 3. Many GPX tracks at once, plus a breadcrumb of where I came from
 
