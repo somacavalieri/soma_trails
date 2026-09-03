@@ -125,8 +125,16 @@ MVP feature-complete and analyze/test-clean. What remains is field validation, w
 - [ ] **Screen off, ≥1 h, phone pocketed** — continuous track with no gaps, battery ≲10%/h. The real test of the foreground service.
 - [ ] **A full ride on a known trail with no signal.**
 
+## The other half
+
+**Its desk half is [track-viewer](https://github.com/somacavalieri/track-viewer)** — the web app where the GPX collection gets bulk-imported, organised and studied on satellite imagery before a trip. That one plans; this one rides. Each spec declares what the other is for, and the boundary was drawn before either was built.
+
 ## License
 
 [GPL-3.0](LICENSE) — required by FMTC, which is GPL-3.0 and sits at the core of the offline tile cache.
 
 This is a personal tool published as a portfolio piece. Tile imagery belongs to its respective providers and their terms of service apply to whichever source you configure; the app ships no API keys and bundles no imagery.
+
+---
+
+Built by [Flavio Soma Cavalieri](https://www.linkedin.com/in/flaviosoma/) — [more projects](https://github.com/somacavalieri).
