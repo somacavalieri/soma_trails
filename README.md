@@ -24,6 +24,12 @@ OruxMaps, Locus and AlpineQuest all do this technically. I tried them; the *flow
 
 **The bet of this project is a product bet, not a technical one:** the hard parts already exist as mature libraries. The value is in ruthless scoping.
 
+### Why every app that does this looks the same
+
+OruxMaps, Locus and AlpineQuest all hand you a URL template and let you point at your own tile source. That is not a coincidence of taste — it is the only shape this feature can take when nobody is paying for imagery. Providers restrict bulk downloading: some prohibit caching outright, others allow it with per-user caps on a paid tier. An app that ships offline satellite imagery to its users is paying someone for the right, and it either charges you or does not offer offline at all.
+
+So this one is built the same way, deliberately. It bundles no imagery and carries no API key — it renders whatever URL template you configure, and the terms that apply to what you download are the provider's. That is a fine arrangement for a personal tool and a bad one for a product, which is exactly why this is the former.
+
 ## The three things that define success
 
 Everything else in this app is negotiable. These are not:
