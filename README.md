@@ -133,7 +133,11 @@ MVP feature-complete and analyze/test-clean. What remains is field validation, w
 
 [GPL-3.0](LICENSE) — required by FMTC, which is GPL-3.0 and sits at the core of the offline tile cache.
 
-This is a personal tool published as a portfolio piece. Tile imagery belongs to its respective providers and their terms of service apply to whichever source you configure; the app ships no API keys and bundles no imagery.
+**Required, and I would have chosen it anyway.** This exists because I ride where there is no signal, not because I want to sell it. Copyleft means anyone can read it, run it and fork it, and nobody can close it up and charge for it. That is the arrangement I want, and the license makes it structural instead of a promise.
+
+It also matches how the tiles work. Apps that sell offline satellite imagery pay for licensed tiles. This one pays for none: it ships no imagery, no API keys and no tile source of its own — it renders whatever URL template you configure, and the terms of service that apply are the provider's, not mine. Defaults are Esri World Imagery and OSM Topo, both swappable in settings, because a source can change its terms at any time.
+
+A personal tool, published as a portfolio piece.
 
 ---
 
