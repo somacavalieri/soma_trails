@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soma_trails/map_compass.dart';
 
@@ -90,10 +89,8 @@ void main() {
       await tester.pumpWidget(wrap(MapCompass(rotation: 45, onTap: () {})));
       expect(tester.getSize(find.byType(MapCompass)), const Size(48, 48));
 
-      // ignore: deprecated_member_use
       final semantics = tester.getSemantics(find.byType(MapCompass));
-      // ignore: deprecated_member_use
-      expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(semantics.flagsCollection.isButton, isTrue);
       
       handle.dispose();
     });
