@@ -219,24 +219,23 @@ Acrescentar ao final de `test/map_compass_test.dart` (dentro do `main()`, depois
       expect(taps, 1);
     });
 
+    // `testWidgets` já roda com semanticsEnabled: true e cuida do handle
+    // sozinho — criar um `ensureSemantics()` aqui quebraria a verificação
+    // de descarte que ele faz antes dos teardowns.
     testWidgets('ocupa 48x48 e é anunciada como botão', (tester) async {
-      final handle = tester.ensureSemantics();
-      addTearDown(handle.dispose);
-
       await tester.pumpWidget(wrap(MapCompass(rotation: 45, onTap: () {})));
       expect(tester.getSize(find.byType(MapCompass)), const Size(48, 48));
 
       final semantics = tester.getSemantics(find.byType(MapCompass));
-      expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
+      expect(semantics.flagsCollection.isButton, isTrue);
     });
   });
 ```
 
-Acrescentar os imports que faltam no topo do arquivo de teste:
+Acrescentar o import que falta no topo do arquivo de teste:
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart';
 ```
 
 - [ ] **Step 2: Rodar e ver falhar**
