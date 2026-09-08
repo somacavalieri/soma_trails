@@ -84,9 +84,6 @@ void main() {
     });
 
     testWidgets('ocupa 48x48 e é anunciada como botão', (tester) async {
-      final handle = tester.ensureSemantics();
-      addTearDown(handle.dispose);
-
       await tester.pumpWidget(wrap(MapCompass(rotation: 45, onTap: () {})));
       expect(tester.getSize(find.byType(MapCompass)), const Size(48, 48));
 
