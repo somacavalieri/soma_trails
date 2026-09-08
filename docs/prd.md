@@ -32,7 +32,7 @@ Viável e de esforço moderado, porque as features-chave vêm de bibliotecas mad
 - **Distribuição:** APK sideload, só Android (S24 Ultra). Sem iOS, sem Play Store. Uso pessoal, sem comercialização — a licença GPL-v3 do FMTC não impõe nenhuma obrigação prática nesse cenário (sem distribuição).
 - **Fontes de satélite:** **configuráveis**, com **tela simples "Fontes do mapa" no v1** (lista de fontes, toggle de qual está ativa — uma por vez —, adicionar/editar por URL template). Defaults: **Esri World Imagery** (satélite) e **OSM Topo** (alternativa topográfica). Bing foi descartado (descontinuado para contas free/basic e usa quadkey, incompatível com URL template `{x}/{y}/{z}` simples).
 - **O protótipo `docs/prototype.html` é a FONTE DA VERDADE de UI/UX** (export interativo do Claude Design; abrir no browser). Onde este PRD e o protótipo divergirem, vale o protótipo. A seção "Especificação de UI" abaixo descreve todas as telas. Únicos desvios deliberados, por motivo técnico: (1) Bing Aerial não entra na lista de fontes (serviço descontinuado + formato quadkey); (2) o download em massa ganha um estado de progresso com cancelar (o protótipo pula direto para "Pronto!").
-- **Orientação do mapa: norte fixo.** A seta de posição gira com o heading; o mapa não rotaciona. Course-up (mapa girando com o movimento) fica no backlog.
+- **Orientação do mapa: norte por padrão, rotação manual.** O mapa abre no norte e pode ser girado com dois dedos (limiar de 20° para não girar sem querer no pinch-zoom); uma bússola aparece quando ele sai do norte, volta ao norte no toque e some 3 s depois. A rotação não é persistida entre aberturas. Course-up (mapa girando sozinho com o movimento) continua no backlog. Ver `docs/superpowers/specs/2026-09-08-rotacao-do-mapa-design.md`.
 - **Waypoints dos GPX: sim, simples.** Pin discreto na cor da trilha; nome aparece ao tocar. Nada além disso.
 - **Pontos do usuário no v1: SIM.** Segurar no mapa marca um ponto pessoal (nome + categoria curta, ex.: água, mirante, perigo/bifurcação); painel "Pontos" lista com coordenadas e excluir. Persistem como arquivo local e aparecem offline.
 - **Download "por trilha" no v1: SIM.** Além do retângulo, dá para escolher uma trilha importada e a área de download se ajusta ao redor do traçado (bounding box + margem).
@@ -55,7 +55,7 @@ Features essenciais ("me salvar na trilha"):
 5. **Marcar pontos no mapa** — segurar no mapa cria um ponto pessoal (nome + categoria); painel "Pontos" com lista, coordenadas e excluir. Visíveis offline, persistem entre sessões.
 
 ### Fora de escopo (backlog)
-Gravação rica de atividade (estatísticas detalhadas, segmentos, gráficos), navegação turn-by-turn/roteamento, busca/geocoding, compartilhamento social, iOS/multiplataforma, sincronização em nuvem, rotação do mapa (course-up), "abrir com / compartilhar para" GPX vindo de outros apps.
+Gravação rica de atividade (estatísticas detalhadas, segmentos, gráficos), navegação turn-by-turn/roteamento, busca/geocoding, compartilhamento social, iOS/multiplataforma, sincronização em nuvem, course-up (mapa girando sozinho com o movimento — a rotação manual por gesto está implementada), "abrir com / compartilhar para" GPX vindo de outros apps.
 
 ## Arquitetura
 

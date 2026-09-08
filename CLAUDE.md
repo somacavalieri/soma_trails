@@ -44,7 +44,7 @@ Standard Flutter commands apply: `flutter pub get`, `flutter run`, `flutter test
 
 ## Architecture (planned)
 
-Single-screen-centric app. Map layers, bottom to top: **offline-aware base tiles → imported-GPX polylines → GPX waypoints → user-marked points → the recorded "my track" polyline → location marker.** Map is north-up (no rotation); the position arrow rotates with heading. Screen stays awake (wakelock) while the app is foregrounded. Long-press on the map marks a personal point (name + category).
+Single-screen-centric app. Map layers, bottom to top: **offline-aware base tiles → imported-GPX polylines → GPX waypoints → user-marked points → the recorded "my track" polyline → location marker.** Map opens north-up and can be rotated with a two-finger gesture (20° threshold; a compass appears when off-north, taps back to north, hides after 3 s; rotation is not persisted). The position arrow rotates with heading. Screen stays awake (wakelock) while the app is foregrounded. Long-press on the map marks a personal point (name + category).
 
 Components (see PRD for detail):
 - **MapScreen** — full-screen `FlutterMap` + controls (zoom, recenter, tracks panel, download, record FAB, HUD).
@@ -66,7 +66,7 @@ Debugged on the S24 Ultra; each of these froze the GPS stream in the field:
 
 ## Scope discipline
 
-The breadcrumb recorder is deliberately **light**: its purpose is orientation, not activity data. **Rich activity recording (detailed stats, segments, charts), turn-by-turn navigation/routing, search/geocoding, social sharing, iOS/multiplatform, cloud sync, map rotation (course-up), and "open with" GPX intents are out of scope for v1** — the owner already uses Strava/Wikiloc for rich recording. Don't add them without an explicit decision to change scope.
+The breadcrumb recorder is deliberately **light**: its purpose is orientation, not activity data. **Rich activity recording (detailed stats, segments, charts), turn-by-turn navigation/routing, search/geocoding, social sharing, iOS/multiplatform, cloud sync, course-up (the map rotating on its own with movement — manual two-finger rotation ships), and "open with" GPX intents are out of scope for v1** — the owner already uses Strava/Wikiloc for rich recording. Don't add them without an explicit decision to change scope.
 
 ## Definition of success (the verification that matters)
 
