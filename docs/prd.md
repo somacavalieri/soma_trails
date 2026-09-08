@@ -48,7 +48,7 @@ Viável e de esforço moderado, porque as features-chave vêm de bibliotecas mad
 
 Features essenciais ("me salvar na trilha"):
 
-1. **Ver minha posição (GPS) no mapa** — ponto/seta de localização com heading (mapa norte fixo), botão "recentralizar em mim". Funciona offline.
+1. **Ver minha posição (GPS) no mapa** — ponto/seta de localização com heading (mapa no norte por padrão, girável com dois dedos), botão "recentralizar em mim". Funciona offline.
 2. **Baixar satélite por área (offline)** — wizard em 3 passos: selecionar região (retângulo arrastável **ou "por trilha"**, com a área ajustada ao redor do traçado), escolher faixa de zoom (slider z12–z18, default z12–z15) com comparação visual de detalhe, ver estimativa de nº de tiles/tamanho/tempo, baixar com progresso, gerenciar/excluir regiões baixadas (com total de armazenamento usado).
 3. **Carregar vários GPX de uma vez** — importar múltiplos arquivos, parsear, exibir todas as trilhas sobrepostas com cores distintas (cor editável) + waypoints (pin simples, nome ao tocar), ligar/desligar individualmente e em massa ("Mostrar todas / Ocultar todas"), organizar em pastas, seleção múltipla e remover trilhas. Edge cases tratados: múltiplos `<trk>`/`<trkseg>` por arquivo e `<rte>` (rotas) renderizados como trilha. Simplificação de polyline para não engasgar com 10+ trilhas longas.
 4. **Gravar meu trajeto (breadcrumb) para me orientar** — gravar/pausar/retomar/parar; registra as posições do GPS e desenha o caminho percorrido como uma linha destacada ("meu trajeto", cor de acento, visualmente distinta das trilhas importadas), começando num pino de início. **Auto-salva em GPX direto no disco** (recovery = reler o arquivo; export sai de graça). Se o app for morto com gravação ativa, ao reabrir **retoma automaticamente**, marcando o gap como novo segmento (sem linha reta falsa). HUD glanceable com distância e tempo. Trajetos salvos ficam numa lista (mostrar no mapa / exportar GPX para `Downloads/` / excluir).
@@ -81,8 +81,8 @@ Tema escuro com acento laranja; painéis em bottom sheet com alça de arrastar; 
 
 ### Tela principal (mapa)
 - **Barra do título:** pin laranja + nome da região ativa ("Serra do Cipó · MG") + chip verde **"Offline pronto"** quando a área visível está coberta pelo cache. À direita: **botão contador de Pontos** (pin rosa + nº de pontos marcados; abre o painel Pontos) e **botão de camadas** (abre "Fontes do mapa").
-- **Mapa:** polylines coloridas com marcadores de início/fim (bolinha/quadradinho nas pontas); pins de waypoints dos GPX; pontos do usuário; posição GPS como **ponto azul com círculo de precisão e seta de heading**; norte fixo.
-- **Controles:** zoom **+/−** empilhado à direita; **FAB laranja de recentralizar** (canto inferior direito); **FAB vermelho de gravação** (canto inferior esquerdo).
+- **Mapa:** polylines coloridas com marcadores de início/fim (bolinha/quadradinho nas pontas); pins de waypoints dos GPX; pontos do usuário; posição GPS como **ponto azul com círculo de precisão e seta de heading**; mapa no norte por padrão, girável com dois dedos.
+- **Controles:** zoom **+/−** empilhado à direita; **FAB laranja de recentralizar** (canto inferior direito); **bússola** logo acima desse FAB, que aparece quando o mapa sai do norte e some 3 s depois de voltar; **FAB vermelho de gravação** (canto inferior esquerdo).
 - **Dica flutuante:** "Segure no mapa para marcar um ponto" (long-press cria ponto do usuário).
 - **Barra inferior (4 itens):** Trilhas (badge verde com nº de trilhas visíveis) · Meu trajeto (ponto vermelho quando gravando) · Baixar satélite · Ajustes.
 

@@ -70,7 +70,7 @@ The interesting part of a personal tool is what you refuse to build.
 |---|---|
 | **Android only, sideloaded APK** | One device (Galaxy S24 Ultra), one user. iOS and Play Store are cost with no return here. |
 | **The breadcrumb is deliberately light** | Its job is orientation — *"where did I come from?"* — not activity data. Strava and Wikiloc already do rich recording, and I still use them. Detailed stats, segments and charts stay out. |
-| **North-up map, no rotation** | The position arrow rotates with heading; the map doesn't. Course-up added complexity for a preference I don't have. |
+| **North-up by default, rotate by gesture** | The map opens north-up and the position arrow rotates with heading. Two fingers twist the map when I need it to match what's in front of me, and a compass taps it back to north. Course-up — the map turning on its own as I ride — stays out. |
 | **No turn-by-turn, no search, no cloud sync, no social** | Every one of these is a whole subsystem serving a need I don't have on a trail. |
 | **Tile sources are user-configurable** | The single biggest durability risk is a tile source disappearing. Making the URL an app setting turns a fatal break into a settings edit. |
 | **No Isar for persistence** | Effectively unmaintained. Config goes to `shared_preferences`; tracks and recordings stay **plain GPX + JSON files** on disk. Tiles live in FMTC's ObjectBox store — accepted vendor lock-in, because tiles are re-downloadable. What must survive is the data that isn't. |
