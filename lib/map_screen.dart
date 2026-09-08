@@ -40,7 +40,7 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   final _mapController = MapController();
   final _location = LocationService();
   final _tracks = TrackManager();
@@ -175,7 +175,7 @@ class _MapScreenState extends State<MapScreen>
     // Snap: um resto de 0,4° depois do gesto deixaria a bússola visível para
     // sempre. Ao terminar de girar, perto do norte vira norte.
     if (event.source == MapEventSource.multiFingerEnd &&
-        offsetFromNorth(r).abs() < 1) {
+        offsetFromNorth(r).abs() < kCompassSnapTolerance) {
       _mapController.rotate(0);
       r = 0;
     }
@@ -747,15 +747,18 @@ class _MapScreenState extends State<MapScreen>
           Positioned(
             right: 16,
             bottom: 96 + 56 + 12 + bottomInset,
-            child: IgnorePointer(
-              ignoring: !_compass.visible,
-              child: AnimatedOpacity(
-                opacity: _compass.visible ? 1 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: MapCompass(
-                  rotation: _rotation,
-                  highContrast: _settings.highContrast,
-                  onTap: _rotateToNorth,
+            child: ExcludeSemantics(
+              excluding: !_compass.visible,
+              child: IgnorePointer(
+                ignoring: !_compass.visible,
+                child: AnimatedOpacity(
+                  opacity: _compass.visible ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: MapCompass(
+                    rotation: _rotation,
+                    highContrast: _settings.highContrast,
+                    onTap: _rotateToNorth,
+                  ),
                 ),
               ),
             ),

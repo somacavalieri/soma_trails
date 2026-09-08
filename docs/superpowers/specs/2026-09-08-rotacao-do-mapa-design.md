@@ -63,6 +63,16 @@ Por quê cada peça (verificado no pacote instalado,
   sozinha, o pinch-zoom ficaria bloqueado pelo resto daquele gesto. `MultiFingerGesture.all`
   (= `rotate | pinchZoom | pinchMove`) deixa girar e continuar dando zoom sem levantar os dedos.
 
+**Efeito colateral da corrida de gestos (registrado na revisão final):** ligar
+`enableMultiFingerGestureRace` também ativa os OUTROS limiares, que antes eram inertes.
+`pinchZoomThreshold` (default 0.5) é medido em níveis de zoom via `log2(scale)`, ou seja, os
+dedos precisam se afastar ~41% antes de o zoom começar; `pinchMoveThreshold` (default 40 px)
+passa a valer para o pan de dois dedos. Enquanto ninguém vence a corrida, nenhum gesto
+multi-toque tem efeito. Na prática o `pinchMove` costuma vencer antes (o foco quase sempre
+desliza 40 px num pinch real, e `pinchMoveWinGestures` já libera o zoom junto), mas um pinch
+centrado e deliberado pode ter um começo morto perceptível. **Conferir no teste de campo**; se
+ficar lerdo, o ajuste é `pinchZoomThreshold: 0.2` (≈15% de abertura).
+
 ## Estado no MapScreen
 
 - Novo campo `double _rotation = 0` em `_MapScreenState`.

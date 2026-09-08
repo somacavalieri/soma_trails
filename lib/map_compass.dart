@@ -3,11 +3,15 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import 'package:soma_trails/theme.dart';
+import 'theme.dart';
 
 /// Abaixo desta rotação (em graus) o mapa é considerado "no norte":
 /// a bússola some e o ponteiro não vale a pena mostrar.
 const double kCompassNorthTolerance = 0.5;
+
+/// Ao terminar um gesto, um desvio do norte menor que isto (em graus) é
+/// zerado. Sem esse snap sobra um resto de 0,4° e a bússola nunca some.
+const double kCompassSnapTolerance = 1.0;
 
 /// Normaliza um ângulo em graus para a faixa `[0, 360)`.
 ///

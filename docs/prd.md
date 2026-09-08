@@ -112,6 +112,8 @@ Tema escuro com acento laranja; painéis em bottom sheet com alça de arrastar; 
 2. **Detalhe (zoom)** — quando "por trilha", banner "MAPA A PARTIR DA TRILHA — área ajustada automaticamente ao redor do traçado"; **comparação visual de dois níveis de zoom** (thumbnails lado a lado); slider **z12–z18** (default **12 → 15**); cards de estimativa: **nº de tiles · tamanho (MB) · tempo estimado**; botão **"Baixar · X MB"** + voltar.
 3. **Pronto!** — check verde, "Área pronta para offline", resumo (tiles · MB), botões **Concluir** e **Ver regiões baixadas**. *(Desvio deliberado: na implementação entra um estado de progresso com cancelar entre os passos 2 e 3.)*
 
+> **Nota (rotação do mapa):** a seleção "por área" parte de `camera.visibleBounds`, que com o mapa girado devolve o bbox alinhado ao norte que *contém* a tela girada — a 45° isso chega a ~1,4× a área visível. Aceito de propósito (o wizard mostra km² e tamanho antes de baixar); se incomodar em campo, a correção é zerar a rotação ao abrir o wizard.
+
 ### Tela "Regiões baixadas"
 - Card **"Armazenamento usado"** com total (ex.: 4,5 GB).
 - Item de região: nome (herda o nome da trilha quando baixada "por trilha"), **tamanho · faixa de zoom · data** ("16 MB · z12–15 · 5 jul"), botão excluir.
