@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:soma_trails/map_compass.dart';
 
 import 'download_controller.dart';
 import 'download_wizard.dart';
@@ -52,6 +53,9 @@ class _MapScreenState extends State<MapScreen> {
   Position? _position;
   bool _follow = false;
   double _zoom = 13;
+
+  /// Rotação atual da câmera em graus (horário). 0 = norte para cima.
+  double _rotation = 0;
   Timer? _debugTimer;
 
   /// Trajetos salvos que o usuário mandou mostrar no mapa (por id).
@@ -155,15 +159,30 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onMapEvent(MapEvent event) {
     final z = event.camera.zoom;
+    var r = event.camera.rotation;
+
+    // Snap: um resto de 0,4° depois do gesto deixaria a bússola visível para
+    // sempre. Ao terminar de girar, perto do norte vira norte.
+    if (event.source == MapEventSource.multiFingerEnd &&
+        offsetFromNorth(r).abs() < 1) {
+      _mapController.rotate(0);
+      r = 0;
+    }
+
+    final rotated = (r - _rotation).abs() > kCompassNorthTolerance;
     final unfollow = _follow && event.source == MapEventSource.onDrag;
-    // Rebuild só quando o zoom exibido muda (ou ao sair do modo seguir).
-    if (unfollow || z.round() != _zoom.round()) {
+    // Rebuild quando o zoom exibido muda, quando a rotação muda o bastante
+    // para a bússola acompanhar, ou ao sair do modo seguir.
+    // Girar de propósito NÃO desliga o seguir — só arrastar.
+    if (unfollow || rotated || z.round() != _zoom.round()) {
       setState(() {
         if (unfollow) _follow = false;
         _zoom = z;
+        _rotation = r;
       });
     } else {
       _zoom = z;
+      _rotation = r;
     }
   }
 
@@ -518,8 +537,15 @@ class _MapScreenState extends State<MapScreen> {
               maxZoom: _cameraMaxZoom,
               onMapEvent: _onMapEvent,
               onLongPress: (_, latlng) => _onLongPress(latlng),
+              // Girar é liberado, mas só ganha a "corrida" de gestos depois de
+              // uma torção de 20°: sem isso um pinch-zoom torto já entortava o
+              // mapa. rotationWinGestures = all mantém o zoom disponível depois
+              // que a rotação ganha, sem precisar levantar os dedos.
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                flags: InteractiveFlag.all,
+                enableMultiFingerGestureRace: true,
+                rotationThreshold: 20,
+                rotationWinGestures: MultiFingerGesture.all,
               ),
             ),
             children: [
