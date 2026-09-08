@@ -22,3 +22,6 @@ key.properties
 
 # Screenshots originais do aparelho (versões otimizadas ficam em docs/screenshots/)
 screenshoot/
+
+# Rascunho de execução de planos (SDD) — nunca commitar
+.superpowers/

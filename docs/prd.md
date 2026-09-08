@@ -32,7 +32,7 @@ Viável e de esforço moderado, porque as features-chave vêm de bibliotecas mad
 - **Distribuição:** APK sideload, só Android (S24 Ultra). Sem iOS, sem Play Store. Uso pessoal, sem comercialização — a licença GPL-v3 do FMTC não impõe nenhuma obrigação prática nesse cenário (sem distribuição).
 - **Fontes de satélite:** **configuráveis**, com **tela simples "Fontes do mapa" no v1** (lista de fontes, toggle de qual está ativa — uma por vez —, adicionar/editar por URL template). Defaults: **Esri World Imagery** (satélite) e **OSM Topo** (alternativa topográfica). Bing foi descartado (descontinuado para contas free/basic e usa quadkey, incompatível com URL template `{x}/{y}/{z}` simples).
 - **O protótipo `docs/prototype.html` é a FONTE DA VERDADE de UI/UX** (export interativo do Claude Design; abrir no browser). Onde este PRD e o protótipo divergirem, vale o protótipo. A seção "Especificação de UI" abaixo descreve todas as telas. Únicos desvios deliberados, por motivo técnico: (1) Bing Aerial não entra na lista de fontes (serviço descontinuado + formato quadkey); (2) o download em massa ganha um estado de progresso com cancelar (o protótipo pula direto para "Pronto!").
-- **Orientação do mapa: norte fixo.** A seta de posição gira com o heading; o mapa não rotaciona. Course-up (mapa girando com o movimento) fica no backlog.
+- **Orientação do mapa: norte por padrão, rotação manual.** O mapa abre no norte e pode ser girado com dois dedos (limiar de 20° para não girar sem querer no pinch-zoom); uma bússola aparece quando ele sai do norte, volta ao norte no toque e some 3 s depois. A rotação não é persistida entre aberturas. Course-up (mapa girando sozinho com o movimento) continua no backlog. Ver `docs/superpowers/specs/2026-09-08-rotacao-do-mapa-design.md`.
 - **Waypoints dos GPX: sim, simples.** Pin discreto na cor da trilha; nome aparece ao tocar. Nada além disso.
 - **Pontos do usuário no v1: SIM.** Segurar no mapa marca um ponto pessoal (nome + categoria curta, ex.: água, mirante, perigo/bifurcação); painel "Pontos" lista com coordenadas e excluir. Persistem como arquivo local e aparecem offline.
 - **Download "por trilha" no v1: SIM.** Além do retângulo, dá para escolher uma trilha importada e a área de download se ajusta ao redor do traçado (bounding box + margem).
@@ -48,14 +48,14 @@ Viável e de esforço moderado, porque as features-chave vêm de bibliotecas mad
 
 Features essenciais ("me salvar na trilha"):
 
-1. **Ver minha posição (GPS) no mapa** — ponto/seta de localização com heading (mapa norte fixo), botão "recentralizar em mim". Funciona offline.
+1. **Ver minha posição (GPS) no mapa** — ponto/seta de localização com heading (mapa no norte por padrão, girável com dois dedos), botão "recentralizar em mim". Funciona offline.
 2. **Baixar satélite por área (offline)** — wizard em 3 passos: selecionar região (retângulo arrastável **ou "por trilha"**, com a área ajustada ao redor do traçado), escolher faixa de zoom (slider z12–z18, default z12–z15) com comparação visual de detalhe, ver estimativa de nº de tiles/tamanho/tempo, baixar com progresso, gerenciar/excluir regiões baixadas (com total de armazenamento usado).
 3. **Carregar vários GPX de uma vez** — importar múltiplos arquivos, parsear, exibir todas as trilhas sobrepostas com cores distintas (cor editável) + waypoints (pin simples, nome ao tocar), ligar/desligar individualmente e em massa ("Mostrar todas / Ocultar todas"), organizar em pastas, seleção múltipla e remover trilhas. Edge cases tratados: múltiplos `<trk>`/`<trkseg>` por arquivo e `<rte>` (rotas) renderizados como trilha. Simplificação de polyline para não engasgar com 10+ trilhas longas.
 4. **Gravar meu trajeto (breadcrumb) para me orientar** — gravar/pausar/retomar/parar; registra as posições do GPS e desenha o caminho percorrido como uma linha destacada ("meu trajeto", cor de acento, visualmente distinta das trilhas importadas), começando num pino de início. **Auto-salva em GPX direto no disco** (recovery = reler o arquivo; export sai de graça). Se o app for morto com gravação ativa, ao reabrir **retoma automaticamente**, marcando o gap como novo segmento (sem linha reta falsa). HUD glanceable com distância e tempo. Trajetos salvos ficam numa lista (mostrar no mapa / exportar GPX para `Downloads/` / excluir).
 5. **Marcar pontos no mapa** — segurar no mapa cria um ponto pessoal (nome + categoria); painel "Pontos" com lista, coordenadas e excluir. Visíveis offline, persistem entre sessões.
 
 ### Fora de escopo (backlog)
-Gravação rica de atividade (estatísticas detalhadas, segmentos, gráficos), navegação turn-by-turn/roteamento, busca/geocoding, compartilhamento social, iOS/multiplataforma, sincronização em nuvem, rotação do mapa (course-up), "abrir com / compartilhar para" GPX vindo de outros apps.
+Gravação rica de atividade (estatísticas detalhadas, segmentos, gráficos), navegação turn-by-turn/roteamento, busca/geocoding, compartilhamento social, iOS/multiplataforma, sincronização em nuvem, course-up (mapa girando sozinho com o movimento — a rotação manual por gesto está implementada), "abrir com / compartilhar para" GPX vindo de outros apps.
 
 ## Arquitetura
 
@@ -81,8 +81,8 @@ Tema escuro com acento laranja; painéis em bottom sheet com alça de arrastar; 
 
 ### Tela principal (mapa)
 - **Barra do título:** pin laranja + nome da região ativa ("Serra do Cipó · MG") + chip verde **"Offline pronto"** quando a área visível está coberta pelo cache. À direita: **botão contador de Pontos** (pin rosa + nº de pontos marcados; abre o painel Pontos) e **botão de camadas** (abre "Fontes do mapa").
-- **Mapa:** polylines coloridas com marcadores de início/fim (bolinha/quadradinho nas pontas); pins de waypoints dos GPX; pontos do usuário; posição GPS como **ponto azul com círculo de precisão e seta de heading**; norte fixo.
-- **Controles:** zoom **+/−** empilhado à direita; **FAB laranja de recentralizar** (canto inferior direito); **FAB vermelho de gravação** (canto inferior esquerdo).
+- **Mapa:** polylines coloridas com marcadores de início/fim (bolinha/quadradinho nas pontas); pins de waypoints dos GPX; pontos do usuário; posição GPS como **ponto azul com círculo de precisão e seta de heading**; mapa no norte por padrão, girável com dois dedos.
+- **Controles:** zoom **+/−** empilhado à direita; **FAB laranja de recentralizar** (canto inferior direito); **bússola** logo acima desse FAB, que aparece quando o mapa sai do norte e some 3 s depois de voltar; **FAB vermelho de gravação** (canto inferior esquerdo).
 - **Dica flutuante:** "Segure no mapa para marcar um ponto" (long-press cria ponto do usuário).
 - **Barra inferior (4 itens):** Trilhas (badge verde com nº de trilhas visíveis) · Meu trajeto (ponto vermelho quando gravando) · Baixar satélite · Ajustes.
 
@@ -111,6 +111,8 @@ Tema escuro com acento laranja; painéis em bottom sheet com alça de arrastar; 
 1. **Selecionar área** — tabs **"Por área"** (retângulo com alças nos cantos arrastáveis + slider **"Tamanho da área"** mostrando km² + dica "Arraste para ajustar a área") e **"Por trilha"** ("Escolha a trilha — a área será ajustada ao redor dela"; lista das trilhas importadas com rádio). Botão **"Próximo: Detalhe"**.
 2. **Detalhe (zoom)** — quando "por trilha", banner "MAPA A PARTIR DA TRILHA — área ajustada automaticamente ao redor do traçado"; **comparação visual de dois níveis de zoom** (thumbnails lado a lado); slider **z12–z18** (default **12 → 15**); cards de estimativa: **nº de tiles · tamanho (MB) · tempo estimado**; botão **"Baixar · X MB"** + voltar.
 3. **Pronto!** — check verde, "Área pronta para offline", resumo (tiles · MB), botões **Concluir** e **Ver regiões baixadas**. *(Desvio deliberado: na implementação entra um estado de progresso com cancelar entre os passos 2 e 3.)*
+
+> **Nota (rotação do mapa):** a seleção "por área" parte de `camera.visibleBounds`, que com o mapa girado devolve o bbox alinhado ao norte que *contém* a tela girada — a 45° isso chega a ~1,4× a área visível. Aceito de propósito (o wizard mostra km² e tamanho antes de baixar); se incomodar em campo, a correção é zerar a rotação ao abrir o wizard.
 
 ### Tela "Regiões baixadas"
 - Card **"Armazenamento usado"** com total (ex.: 4,5 GB).

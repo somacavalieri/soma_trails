@@ -10,6 +10,7 @@ import 'download_controller.dart';
 import 'download_wizard.dart';
 import 'location_marker.dart';
 import 'location_service.dart';
+import 'map_compass.dart';
 import 'models/track.dart';
 import 'point_manager.dart';
 import 'points_panel.dart';
@@ -38,7 +39,8 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with TickerProviderStateMixin {
   final _mapController = MapController();
   final _location = LocationService();
   final _tracks = TrackManager();
@@ -52,6 +54,15 @@ class _MapScreenState extends State<MapScreen> {
   Position? _position;
   bool _follow = false;
   double _zoom = 13;
+
+  /// Rotação atual da câmera em graus (horário). 0 = norte para cima.
+  double _rotation = 0;
+
+  /// Controla quando a bússola aparece e quando some (3 s no norte).
+  final _compass = CompassVisibility();
+
+  /// Animação de volta ao norte disparada pelo toque na bússola.
+  AnimationController? _northAnimation;
   Timer? _debugTimer;
 
   /// Trajetos salvos que o usuário mandou mostrar no mapa (por id).
@@ -75,6 +86,7 @@ class _MapScreenState extends State<MapScreen> {
     _download.load();
     _settings.addListener(_onChange);
     _settings.load();
+    _compass.addListener(_onChange);
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -104,6 +116,9 @@ class _MapScreenState extends State<MapScreen> {
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
+    _compass.removeListener(_onChange);
+    _compass.dispose();
+    _northAnimation?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -155,16 +170,81 @@ class _MapScreenState extends State<MapScreen> {
 
   void _onMapEvent(MapEvent event) {
     final z = event.camera.zoom;
+    var r = event.camera.rotation;
+
+    // Snap: um resto de 0,4° depois do gesto deixaria a bússola visível para
+    // sempre. Ao terminar de girar, perto do norte vira norte.
+    if (event.source == MapEventSource.multiFingerEnd &&
+        offsetFromNorth(r).abs() < kCompassSnapTolerance) {
+      _mapController.rotate(0);
+      r = 0;
+    }
+
+    // Encostou no mapa no meio da animação? A animação para onde está.
+    if (_northAnimation != null &&
+        (event.source == MapEventSource.multiFingerGestureStart ||
+            event.source == MapEventSource.onMultiFinger ||
+            event.source == MapEventSource.dragStart ||
+            event.source == MapEventSource.onDrag)) {
+      _cancelNorthAnimation();
+    }
+
+    _compass.onRotation(r);
+
+    final rotated = (r - _rotation).abs() > kCompassNorthTolerance;
     final unfollow = _follow && event.source == MapEventSource.onDrag;
-    // Rebuild só quando o zoom exibido muda (ou ao sair do modo seguir).
-    if (unfollow || z.round() != _zoom.round()) {
+    // Rebuild quando o zoom exibido muda, quando a rotação muda o bastante
+    // para a bússola acompanhar, ou ao sair do modo seguir.
+    // Girar de propósito NÃO desliga o seguir — só arrastar.
+    if (unfollow || rotated || z.round() != _zoom.round()) {
       setState(() {
         if (unfollow) _follow = false;
         _zoom = z;
+        _rotation = r;
       });
     } else {
       _zoom = z;
+      _rotation = r;
     }
+  }
+
+  void _cancelNorthAnimation() {
+    _northAnimation?.dispose();
+    _northAnimation = null;
+  }
+
+  /// Toque na bússola: anima o mapa de volta ao norte pelo caminho curto.
+  void _rotateToNorth() {
+    _cancelNorthAnimation();
+    final from = _rotation;
+    final turn = shortestTurn(from, 0);
+    if (turn.abs() < kCompassNorthTolerance) {
+      _mapController.rotate(0);
+      return;
+    }
+
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _northAnimation = controller;
+
+    controller.addListener(() {
+      final t = Curves.easeOutCubic.transform(controller.value);
+      _mapController.rotate(from + turn * t);
+    });
+
+    // O TickerFuture do forward() nunca completa se a animação for cancelada
+    // (o dispose em _cancelNorthAnimation), então isto só roda no fim de
+    // verdade — e roda num microtask, fora da notificação do status, que é
+    // onde dar dispose no controller estouraria.
+    controller.forward().whenComplete(() {
+      // A guarda de identidade evita que a conclusão de uma animação
+      // obsoleta dê dispose no controller de uma animação nova.
+      if (!mounted || _northAnimation != controller) return;
+      _mapController.rotate(0);
+      _cancelNorthAnimation();
+    });
   }
 
   /// Maior zoom baixado que cobre o centro atual (para avisar de overzoom).
@@ -349,6 +429,7 @@ class _MapScreenState extends State<MapScreen> {
           point: p.point,
           width: 34,
           height: 34,
+          rotate: true,
           child: GestureDetector(
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('${p.displayName} · ${p.category.label}')),
@@ -463,6 +544,7 @@ class _MapScreenState extends State<MapScreen> {
             width: 30,
             height: 30,
             alignment: Alignment.topCenter,
+            rotate: true,
             child: GestureDetector(
               onTap: () {
                 if (w.name != null && w.name!.isNotEmpty) {
@@ -518,8 +600,15 @@ class _MapScreenState extends State<MapScreen> {
               maxZoom: _cameraMaxZoom,
               onMapEvent: _onMapEvent,
               onLongPress: (_, latlng) => _onLongPress(latlng),
+              // Girar é liberado, mas só ganha a "corrida" de gestos depois de
+              // uma torção de 20°: sem isso um pinch-zoom torto já entortava o
+              // mapa. rotationWinGestures = all mantém o zoom disponível depois
+              // que a rotação ganha, sem precisar levantar os dedos.
               interactionOptions: const InteractionOptions(
-                flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+                flags: InteractiveFlag.all,
+                enableMultiFingerGestureRace: true,
+                rotationThreshold: 20,
+                rotationWinGestures: MultiFingerGesture.all,
               ),
             ),
             children: [
@@ -544,6 +633,7 @@ class _MapScreenState extends State<MapScreen> {
                       point: startPoint,
                       width: 22,
                       height: 22,
+                      rotate: true,
                       child: const _StartPin(),
                     ),
                   ],
@@ -648,6 +738,29 @@ class _MapScreenState extends State<MapScreen> {
                   downloadedMax: _downloadedMaxZoomAtCenter(),
                 ),
               ],
+            ),
+          ),
+
+          // Bússola: aparece quando o mapa sai do norte, logo acima do
+          // botão de recentralizar (que não se mexe). Some 3 s depois de
+          // voltar ao norte.
+          Positioned(
+            right: 16,
+            bottom: 96 + 56 + 12 + bottomInset,
+            child: ExcludeSemantics(
+              excluding: !_compass.visible,
+              child: IgnorePointer(
+                ignoring: !_compass.visible,
+                child: AnimatedOpacity(
+                  opacity: _compass.visible ? 1 : 0,
+                  duration: const Duration(milliseconds: 200),
+                  child: MapCompass(
+                    rotation: _rotation,
+                    highContrast: _settings.highContrast,
+                    onTap: _rotateToNorth,
+                  ),
+                ),
+              ),
             ),
           ),
 
