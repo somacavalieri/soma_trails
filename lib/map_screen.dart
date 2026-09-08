@@ -5,12 +5,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:soma_trails/map_compass.dart';
 
 import 'download_controller.dart';
 import 'download_wizard.dart';
 import 'location_marker.dart';
 import 'location_service.dart';
+import 'map_compass.dart';
 import 'models/track.dart';
 import 'point_manager.dart';
 import 'points_panel.dart';
@@ -39,7 +39,8 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen>
+    with SingleTickerProviderStateMixin {
   final _mapController = MapController();
   final _location = LocationService();
   final _tracks = TrackManager();
@@ -56,6 +57,12 @@ class _MapScreenState extends State<MapScreen> {
 
   /// Rotação atual da câmera em graus (horário). 0 = norte para cima.
   double _rotation = 0;
+
+  /// Controla quando a bússola aparece e quando some (3 s no norte).
+  final _compass = CompassVisibility();
+
+  /// Animação de volta ao norte disparada pelo toque na bússola.
+  AnimationController? _northAnimation;
   Timer? _debugTimer;
 
   /// Trajetos salvos que o usuário mandou mostrar no mapa (por id).
@@ -79,6 +86,7 @@ class _MapScreenState extends State<MapScreen> {
     _download.load();
     _settings.addListener(_onChange);
     _settings.load();
+    _compass.addListener(_onChange);
     _tracks.load().then((_) {
       if (mounted && !_follow) {
         _fitToTracks(_tracks.tracks.where((t) => t.visible));
@@ -108,6 +116,9 @@ class _MapScreenState extends State<MapScreen> {
     _recorder.dispose();
     _positionSub?.cancel();
     _location.dispose();
+    _compass.removeListener(_onChange);
+    _compass.dispose();
+    _northAnimation?.dispose();
     _mapController.dispose();
     super.dispose();
   }
@@ -169,6 +180,17 @@ class _MapScreenState extends State<MapScreen> {
       r = 0;
     }
 
+    // Encostou no mapa no meio da animação? A animação para onde está.
+    if (_northAnimation != null &&
+        (event.source == MapEventSource.multiFingerGestureStart ||
+            event.source == MapEventSource.onMultiFinger ||
+            event.source == MapEventSource.dragStart ||
+            event.source == MapEventSource.onDrag)) {
+      _cancelNorthAnimation();
+    }
+
+    _compass.onRotation(r);
+
     final rotated = (r - _rotation).abs() > kCompassNorthTolerance;
     final unfollow = _follow && event.source == MapEventSource.onDrag;
     // Rebuild quando o zoom exibido muda, quando a rotação muda o bastante
@@ -184,6 +206,45 @@ class _MapScreenState extends State<MapScreen> {
       _zoom = z;
       _rotation = r;
     }
+  }
+
+  void _cancelNorthAnimation() {
+    _northAnimation?.dispose();
+    _northAnimation = null;
+  }
+
+  /// Toque na bússola: anima o mapa de volta ao norte pelo caminho curto.
+  void _rotateToNorth() {
+    _cancelNorthAnimation();
+    final from = _rotation;
+    final turn = shortestTurn(from, 0);
+    if (turn.abs() < kCompassNorthTolerance) {
+      _mapController.rotate(0);
+      return;
+    }
+
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _northAnimation = controller;
+
+    controller.addListener(() {
+      final t = Curves.easeOutCubic.transform(controller.value);
+      _mapController.rotate(from + turn * t);
+    });
+
+    // O TickerFuture do forward() nunca completa se a animação for cancelada
+    // (o dispose em _cancelNorthAnimation), então isto só roda no fim de
+    // verdade — e roda num microtask, fora da notificação do status, que é
+    // onde dar dispose no controller estouraria.
+    controller.forward().whenComplete(() {
+      // A guarda de identidade evita que a conclusão de uma animação
+      // obsoleta dê dispose no controller de uma animação nova.
+      if (!mounted || _northAnimation != controller) return;
+      _mapController.rotate(0);
+      _cancelNorthAnimation();
+    });
   }
 
   /// Maior zoom baixado que cobre o centro atual (para avisar de overzoom).
@@ -677,6 +738,26 @@ class _MapScreenState extends State<MapScreen> {
                   downloadedMax: _downloadedMaxZoomAtCenter(),
                 ),
               ],
+            ),
+          ),
+
+          // Bússola: aparece quando o mapa sai do norte, logo acima do
+          // botão de recentralizar (que não se mexe). Some 3 s depois de
+          // voltar ao norte.
+          Positioned(
+            right: 16,
+            bottom: 96 + 56 + 12 + bottomInset,
+            child: IgnorePointer(
+              ignoring: !_compass.visible,
+              child: AnimatedOpacity(
+                opacity: _compass.visible ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: MapCompass(
+                  rotation: _rotation,
+                  highContrast: _settings.highContrast,
+                  onTap: _rotateToNorth,
+                ),
+              ),
             ),
           ),
 
