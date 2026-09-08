@@ -87,6 +87,12 @@ Por quê cada peça (verificado no pacote instalado,
   norte geográfico e, no centro, a letra da direção que está **para cima** na tela.
 - **Rótulos em português:** N, NE, L, SE, S, SO, O, NO — faixas de 45° centradas
   (N = [-22,5°, 22,5°)).
+- **Sinal da rotação:** o `MobileLayerTransformer` do flutter_map aplica
+  `Transform.rotate(angle: camera.rotationRad)`, que no Flutter gira no **sentido horário**.
+  Ou seja, o norte fica na direção `+rotation` na tela e a direção **no topo da tela** é
+  `-rotation`. Confere com a screenshot do Strava (ponteiro vermelho à esquerda + letra "E":
+  norte à esquerda = rotação −90 = leste para cima). O ponteiro e os ticks giram junto com o
+  mapa (`Transform.rotate(angle: rotationRad)`); a **letra fica sempre em pé**.
 - **Alvo de toque de 48 px** mesmo com o disco de 46, via `Semantics(button: true)` +
   `GestureDetector` com `behavior: HitTestBehavior.opaque`.
 - **Posição:** `Positioned(right: 16, bottom: 96 + 56 + 12 + bottomInset)` — colada acima do
@@ -143,11 +149,13 @@ de zoom e chip "Offline pronto" (usam `camera.center`).
 
 **Unidade** (`test/map_compass_test.dart`) — helpers puros, sem mapa:
 - normalização do caminho curto: 350 → 0 percorre +10; 10 → 0 percorre −10; 180 é estável.
-- rótulo de direção por faixa: 0→N, 44→NE, 90→L, 200→SO, 359→N.
+- rótulo de direção por faixa (lembrando que a direção no topo é `-rotation`):
+  0→N, −90→L, 90→O, −45→NE, 180→S.
 - regra do auto-esconder isolada num pequeno controlador testável (rotação ≠ 0 mostra;
   voltar a 0 agenda 3 s; girar de novo cancela).
 
-**Widget** — bússola: `rotation: 90` renderiza "L"; norte + timer vencido → opacidade 0.
+**Widget** — bússola: `rotation: -90` renderiza "L"; `rotation: 90` renderiza "O"; norte +
+timer vencido → opacidade 0.
 
 **Campo (S24 Ultra):**
 - girar de luva funciona; pinch-zoom **puro** não gira mais o mapa;
