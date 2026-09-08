@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:soma_trails/map_compass.dart';
 
@@ -61,6 +63,39 @@ void main() {
       expect(compassLabel(-22.4), 'N');
       expect(compassLabel(-22.6), 'NE');
       expect(compassLabel(-337.6), 'N');
+    });
+  });
+
+  group('MapCompass', () {
+    Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: Center(child: child)));
+
+    testWidgets('mostra a letra da direção no topo da tela', (tester) async {
+      await tester.pumpWidget(wrap(MapCompass(rotation: -90, onTap: () {})));
+      expect(find.text('L'), findsOneWidget);
+
+      await tester.pumpWidget(wrap(MapCompass(rotation: 90, onTap: () {})));
+      expect(find.text('O'), findsOneWidget);
+    });
+
+    testWidgets('avisa quando é tocada', (tester) async {
+      var taps = 0;
+      await tester.pumpWidget(wrap(MapCompass(rotation: 45, onTap: () => taps++)));
+      await tester.tap(find.byType(MapCompass));
+      expect(taps, 1);
+    });
+
+    testWidgets('ocupa 48x48 e é anunciada como botão', (tester) async {
+      final handle = tester.ensureSemantics();
+
+      await tester.pumpWidget(wrap(MapCompass(rotation: 45, onTap: () {})));
+      expect(tester.getSize(find.byType(MapCompass)), const Size(48, 48));
+
+      // ignore: deprecated_member_use
+      final semantics = tester.getSemantics(find.byType(MapCompass));
+      // ignore: deprecated_member_use
+      expect(semantics.hasFlag(SemanticsFlag.isButton), isTrue);
+      
+      handle.dispose();
     });
   });
 }

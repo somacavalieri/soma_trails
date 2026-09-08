@@ -1,3 +1,9 @@
+import 'dart:math' as math;
+
+import 'package:flutter/material.dart';
+
+import 'package:soma_trails/theme.dart';
+
 /// Abaixo desta rotação (em graus) o mapa é considerado "no norte":
 /// a bússola some e o ponteiro não vale a pena mostrar.
 const double kCompassNorthTolerance = 0.5;
@@ -36,4 +42,118 @@ String compassLabel(double rotation) {
   final bearing = normalizeDegrees(-rotation);
   final index = ((bearing + 22.5) / 45).floor() % 8;
   return _labels[index];
+}
+
+/// Bússola do mapa: disco que gira junto com o mapa, ponteiro vermelho
+/// apontando o norte e, no centro, a letra da direção que está para cima.
+///
+/// Só mostra a rotação — quem decide se ela aparece é quem a posiciona.
+class MapCompass extends StatelessWidget {
+  const MapCompass({
+    super.key,
+    required this.rotation,
+    required this.onTap,
+    this.highContrast = false,
+  });
+
+  /// Rotação da câmera do flutter_map, em graus (horário).
+  final double rotation;
+
+  /// Chamado ao tocar: espera-se que anime o mapa de volta ao norte.
+  final VoidCallback onTap;
+
+  /// Reforça o contraste (Ajustes → "Alto contraste").
+  final bool highContrast;
+
+  static const double size = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    final radians = rotation * math.pi / 180;
+    return Semantics(
+      button: true,
+      label: 'Voltar o mapa para o norte',
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(
+            color: AppColors.panel.withValues(alpha: highContrast ? 1.0 : 0.92),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: highContrast ? 0.9 : 0.25),
+              width: highContrast ? 2 : 1,
+            ),
+            boxShadow: const [BoxShadow(color: Colors.black45, blurRadius: 4)],
+          ),
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Ponteiro e ticks giram junto com o mapa...
+              Transform.rotate(
+                angle: radians,
+                child: CustomPaint(
+                  size: const Size(size, size),
+                  painter: _CompassNeedlePainter(highContrast: highContrast),
+                ),
+              ),
+              // ...mas a letra fica sempre em pé.
+              Text(
+                compassLabel(rotation),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CompassNeedlePainter extends CustomPainter {
+  _CompassNeedlePainter({required this.highContrast});
+
+  final bool highContrast;
+
+  static const _north = Color(0xFFE03131);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final radius = size.width / 2;
+
+    // Ticks nas quatro direções principais.
+    final tick = Paint()
+      ..color = Colors.white.withValues(alpha: highContrast ? 0.8 : 0.45)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    for (var i = 0; i < 4; i++) {
+      final angle = i * math.pi / 2;
+      final dir = Offset(math.sin(angle), -math.cos(angle));
+      canvas.drawLine(
+        center + dir * (radius - 7),
+        center + dir * (radius - 4),
+        tick,
+      );
+    }
+
+    // Ponteiro vermelho para o norte (para cima antes da rotação).
+    final needle = Path()
+      ..moveTo(center.dx, 4)
+      ..lineTo(center.dx - 4.5, 13)
+      ..lineTo(center.dx + 4.5, 13)
+      ..close();
+    canvas.drawPath(needle, Paint()..color = _north);
+  }
+
+  @override
+  bool shouldRepaint(_CompassNeedlePainter oldDelegate) =>
+      oldDelegate.highContrast != highContrast;
 }
