@@ -129,10 +129,10 @@ Criar `lib/map_compass.dart`:
 const double kCompassNorthTolerance = 0.5;
 
 /// Normaliza um ângulo em graus para a faixa `[0, 360)`.
-double normalizeDegrees(double degrees) {
-  final v = degrees % 360;
-  return v < 0 ? v + 360 : v;
-}
+///
+/// O `%` do Dart com divisor positivo já devolve resultado em `[0, 360)`,
+/// inclusive para entrada negativa: `-90 % 360 == 270`.
+double normalizeDegrees(double degrees) => degrees % 360;
 
 /// Giro mínimo (em graus) para sair de [from] e chegar em [to],
 /// no intervalo `(-180, 180]`. Positivo = sentido horário.
@@ -839,7 +839,9 @@ Acrescentar estes dois métodos logo depois de `_onMapEvent`:
     // verdade — e roda num microtask, fora da notificação do status, que é
     // onde dar dispose no controller estouraria.
     controller.forward().whenComplete(() {
-      if (!mounted) return;
+      // A guarda de identidade evita que a conclusão de uma animação
+      // obsoleta dê dispose no controller de uma animação nova.
+      if (!mounted || _northAnimation != controller) return;
       _mapController.rotate(0);
       _cancelNorthAnimation();
     });
