@@ -91,4 +91,76 @@ void main() {
       expect(semantics.flagsCollection.isButton, isTrue);
     });
   });
+
+  group('CompassVisibility', () {
+    test('começa escondida', () {
+      final c = CompassVisibility();
+      addTearDown(c.dispose);
+      expect(c.visible, isFalse);
+    });
+
+    test('aparece na hora quando o mapa sai do norte', () {
+      final c = CompassVisibility();
+      addTearDown(c.dispose);
+      var notifications = 0;
+      c.addListener(() => notifications++);
+
+      c.onRotation(30);
+      expect(c.visible, isTrue);
+      expect(notifications, 1);
+    });
+
+    test('ignora rotação dentro da tolerância do norte', () {
+      final c = CompassVisibility();
+      addTearDown(c.dispose);
+      c.onRotation(0.4);
+      expect(c.visible, isFalse);
+    });
+
+    test('entende rotação acumulada perto do norte', () {
+      final c = CompassVisibility();
+      addTearDown(c.dispose);
+      // 359.7 é 0,3° do norte, não 359,7° de desvio.
+      c.onRotation(359.7);
+      expect(c.visible, isFalse);
+      c.onRotation(360.9);
+      expect(c.visible, isTrue);
+    });
+
+    test('some depois do atraso quando volta ao norte', () async {
+      final c = CompassVisibility(hideDelay: const Duration(milliseconds: 30));
+      addTearDown(c.dispose);
+
+      c.onRotation(30);
+      c.onRotation(0);
+      expect(c.visible, isTrue, reason: 'ainda visível durante o atraso');
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(c.visible, isFalse);
+    });
+
+    test('girar de novo cancela o esconder agendado', () async {
+      final c = CompassVisibility(hideDelay: const Duration(milliseconds: 30));
+      addTearDown(c.dispose);
+
+      c.onRotation(30);
+      c.onRotation(0);
+      c.onRotation(15);
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(c.visible, isTrue);
+    });
+
+    test('dispose cancela o timer pendente', () async {
+      final c = CompassVisibility(hideDelay: const Duration(milliseconds: 30));
+      c.onRotation(30);
+      c.onRotation(0);
+      c.dispose();
+
+      // Se o timer sobrevivesse, ele chamaria notifyListeners() depois do
+      // dispose e o teste quebraria com "A CompassVisibility was used after
+      // being disposed".
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+    });
+  });
 }

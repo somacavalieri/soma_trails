@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -156,4 +157,47 @@ class _CompassNeedlePainter extends CustomPainter {
   @override
   bool shouldRepaint(_CompassNeedlePainter oldDelegate) =>
       oldDelegate.highContrast != highContrast;
+}
+
+/// Decide quando a bússola aparece e quando some.
+///
+/// Regra (igual à do Strava): aparece assim que o mapa sai do norte e,
+/// quando volta ao norte, some [hideDelay] depois. Girar de novo nesse
+/// meio-tempo cancela o desaparecimento.
+class CompassVisibility extends ChangeNotifier {
+  CompassVisibility({this.hideDelay = const Duration(seconds: 3)});
+
+  final Duration hideDelay;
+
+  Timer? _hideTimer;
+  bool _visible = false;
+
+  bool get visible => _visible;
+
+  /// Chamar sempre que a rotação da câmera mudar.
+  void onRotation(double rotation) {
+    if (offsetFromNorth(rotation).abs() > kCompassNorthTolerance) {
+      _hideTimer?.cancel();
+      _hideTimer = null;
+      _setVisible(true);
+    } else if (_visible && _hideTimer == null) {
+      _hideTimer = Timer(hideDelay, () {
+        _hideTimer = null;
+        _setVisible(false);
+      });
+    }
+  }
+
+  void _setVisible(bool value) {
+    if (_visible == value) return;
+    _visible = value;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _hideTimer?.cancel();
+    _hideTimer = null;
+    super.dispose();
+  }
 }
