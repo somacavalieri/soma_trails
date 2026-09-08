@@ -73,8 +73,12 @@ Por quê cada peça (verificado no pacote instalado,
   (girar preserva o seguir).
 - `_onPosition` segue chamando `_mapController.move(...)`, que não mexe na rotação: seguir com
   o mapa girado funciona sem tratamento especial.
-- **Snap:** ao terminar um gesto (`MapEventSource.multiFingerEnd`), se `|rotação| < 1°` a
-  rotação é zerada. Sem isso sobra um 0,4° teimoso e a bússola nunca some.
+- **Snap:** ao terminar um gesto (`MapEventSource.multiFingerEnd`), se o desvio do norte for
+  menor que 1° a rotação é zerada. Sem isso sobra um 0,4° teimoso e a bússola nunca some.
+- **Cuidado: `camera.rotation` não é normalizada.** O gesto faz `_camera.rotation + diff` e
+  acumula (`map_interactive_viewer.dart:733`), então o valor pode ser `-47.3` ou `412.8`.
+  Toda comparação com o norte passa por um helper que devolve o desvio com sinal em
+  `(-180°, 180°]` — comparar `rotation.abs()` direto trataria 359,7° como "girado".
 
 ## Bússola — `lib/map_compass.dart` (novo)
 
