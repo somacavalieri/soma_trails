@@ -368,6 +368,7 @@ class _MapScreenState extends State<MapScreen> {
           point: p.point,
           width: 34,
           height: 34,
+          rotate: true,
           child: GestureDetector(
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('${p.displayName} · ${p.category.label}')),
@@ -482,6 +483,7 @@ class _MapScreenState extends State<MapScreen> {
             width: 30,
             height: 30,
             alignment: Alignment.topCenter,
+            rotate: true,
             child: GestureDetector(
               onTap: () {
                 if (w.name != null && w.name!.isNotEmpty) {
@@ -570,6 +572,7 @@ class _MapScreenState extends State<MapScreen> {
                       point: startPoint,
                       width: 22,
                       height: 22,
+                      rotate: true,
                       child: const _StartPin(),
                     ),
                   ],
